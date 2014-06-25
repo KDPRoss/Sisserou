@@ -1,0 +1,181 @@
+-- Sisserou -- A linguistic toy based on System F Omega   --
+--                                                        --
+-- Copyright 2K14 DP Constructions                        --
+--            and K.D.P.Ross <KDPRoss@gmail.com>          --
+--                                                        --
+-- This codebase is licensed for the following purposes   --
+-- only:                                                  --
+--                                                        --
+-- - study of the code                                    --
+--                                                        --
+-- - use of the unaltered code to compile the interpreter --
+--   for noncommercial educational and entertainment      --
+--   purposes only                                        --
+--                                                        --
+-- - gratis redistribution of the code in entirety and in --
+--   unaltered form for any aforementioned purpose        --
+--                                                        --
+-- The code may not be used for any other purposes,       --
+-- including but not limited to:                          --
+--                                                        --
+-- - any commercial purpose                               --
+--                                                        --
+-- - use by any governmentally-affiliated organisation    --
+--                                                        --
+-- - connection to any external system for any useful     --
+--   purpose whatsoever                                   --
+
+
+
+
+
+-- Natural Numbers
+new type Nat : *
+new cons S : (- : Nat) Nat
+new cons Z : Nat
+
+-- Lists
+new type List : (- : *) *
+new cons Nil  : (a : *) List[ a ]
+new cons Cons : (a : *)(- : a)(- : List[ a ]) List[ a ]
+
+-- Maybe
+new type Maybe   : (- : *) *
+new cons Just    : (a : *)(- : a) Maybe[ a ]
+new cons Nothing : (a : *) Maybe[ a ]
+
+plus : (- : Nat)(- : Nat) Nat =
+  (m : Nat)(n : Nat)
+    case m of
+    | Z.             - n
+    | S[ (m : Nat) ] - S[ plus[ m, n ] ]
+
+mult : (- : Nat)(- : Nat) Nat =
+  (m : Nat)(n : Nat)
+    case m of
+    | Z.             - Z.
+    | S[ (m : Nat) ] - plus[ n, mult[ m, n ] ]
+
+map : (a : *)(b : *)(- : (- : a) b)(- : List[ a ]) List[ b ] =
+  (a : *)(b : *)
+    (f : (- : a) b)(xs : List[ a ])
+      case xs of
+      | Nil[ a |] - (Nil[ b |])
+      | Cons[ a | (x : a), (xs : List[ a ]) ] - Cons[ b | f[ x ], map[ a, b | f, xs ] ]
+
+zipwith : (a : *)(b : *)(c : *)(- : (- : a)(- : b) c)(- : List[ a ])(- : List[ b ]) List[ c ] =
+  (a : *)(b : *)(c : *)
+    (f : (- : a)(- : b) c)(xs : List[ a ])(ys : List[ b ])
+      case xs of
+      | Nil[ a |]                             - Nil[ c |]
+      | Cons[ a | (x : a), (xs : List[ a ]) ] - (case ys of
+                                                  | Nil[ b |]                             - Nil[ c |]
+                                                  | Cons[ b | (y : b), (ys : List[ b ]) ] - Cons[ c | f[ x, y ], zipwith[ a, b, c | f, xs, ys ] ]
+                                                 )
+
+-- Pairs
+new type Pair : (- : *)(- : *) *
+new cons Pair : (a : *)(b : *)(- : a)(- : b) Pair[ a, b ]
+
+-- And, of course, the real purpose of *any* language is to
+-- calculate `fac 5`; let's do it!
+fac : (- : Nat) Nat =
+  (n : Nat)
+    case n of
+    | Z.             - S[ Z. ]
+    | S[ (n : Nat) ] - mult[ S[ n ], fac[ n ] ]
+
+-- If this isn't Sisserou a tour de force, I don't know what
+-- is!
+facfive : Nat = fac[ S[ S[ S[ S[ S[ Z. ] ] ] ] ] ]
+
+-- Functional Combinators
+id : (a : *)(- : a) a =
+  (a : *)
+    (x : a)
+      x
+
+curry : (a : *)(b : *)(c : *)(- : (- : Pair[ a, b ]) c)(- : a)(- : b) c =
+  (a : *)(b : *)(c : *)
+    (f : (- : Pair[ a, b ]) c)(x : a)(y : b)
+      f[ Pair[ a, b | x, y ] ]
+
+uncurry : (a : *)(b : *)(c : *)(- : (- : a)(- : b) c)(- : Pair[ a, b ]) c =
+  (a : *)(b : *)(c : *)
+    (f : (- : a)(- : b) c)(p : Pair[ a, b ])
+      case p of
+      | Pair[ a, b | (x : a), (y : b) ] - f[ x, y ]
+
+flip : (a : *)(b : *)(c : *)(- : (- : a)(- : b) c)(- : b)(- : a) c =
+  (a : *)(b : *)(c : *)
+    (f : (- : a)(- : b) c)(y : b)(x : a)
+      f[ x, y ]
+
+compose : (a : *)(b : *)(c : *)(- : (- : b) c)(- : (- : a) b)(- : a) c =
+  (a : *)(b : *)(c : *)
+    (g : (- : b) c)(f : (- : a) b)(x : a)
+      g[ f[ x ] ]
+
+zip : (a : *)(b : *)(- : List[ a ])(- : List[ b ]) List[ Pair[ a, b ] ] =
+  (a : *)(b : *)
+    zipwith[ a, b, Pair[ a, b ] | Pair[ a, b |] ]
+
+-- Let's do something that we cannot do in OCaml:
+-- Correctly-polymorphic self application:
+
+idprime : (a : *)(- : a) a = id[ (a : *)(- : a) a | id ]
+
+-- Now, let's do something higher-kinded: Monads!
+
+-- lift :: Monad m => (a - b) - m a - m b
+-- We encode this to take the function first, then quantify
+-- over the monad.
+lift : (a : *)(b : *)(- : (- : a) b)(m : (- : *) *)(- : (a : *)(- : a) m[ a ])(- : (a : *)(b : *)(- : m[ a ])(- : (- : a) m[ b ]) m[ b ])(- : m[ a ]) m[ b ] =
+  (a : *)(b : *)
+    (f : (- : a) b)
+      (m : (- : *) *)
+        (return : (a : *)(- : a) m[ a ])(bind : (a : *)(b : *)(- : m[ a ])(- : (- : a) m[ b ]) m[ b ])
+          (x : m[ a ])
+            bind[ a, b | x, (y : a) return[ b | f[ y ] ] ]
+
+listreturn : (a : *)(- : a) List[ a ] =
+  (a : *)
+    (x : a)
+      Cons[ a | x, Nil[ a |] ]
+
+concat : (a : *)(- : List[ a ])(- : List[ a ]) List[ a ] =
+  (a : *)
+    (xs : List[ a ])(ys : List[ a ])
+      case xs of
+      | Nil[ a |]                             - ys
+      | Cons[ a | (x : a), (xs : List[ a ]) ] - Cons[ a | x, concat[ a | xs, ys ] ]
+
+flatten : (a : *)(- : List[ List[ a ] ]) List[ a ] =
+  (a : *)
+    (xss : List[ List[ a ] ])
+      case xss of
+      | Nil[ List[ a ] |]                                               - Nil[ a |]
+      | Cons[ List[ a ] | (xs : List[ a ]), (xss : List[ List[ a ] ]) ] - concat[ a | xs, flatten[ a | xss ] ]
+
+listbind : (a : *)(b : *)(- : List[ a ])(- : (- : a) List[ b ]) List[ b ] =
+  (a : *)(b : *)
+    (xs : List[ a ])(f : (- : a) List[ b ])
+      flatten[ b | map[ a, List[ b ] | f, xs ] ]
+
+maybereturn : (a : *)(- : a) Maybe[ a ] = Just.
+
+maybebind : (a : *)(b : *)(- : Maybe[ a ])(- : (- : a) Maybe[ b ]) Maybe[ b ] =
+  (a : *)(b : *)
+    (m : Maybe[ a ])(f : (- : a) Maybe[ b ])
+      case m of
+      | Nothing[ a |]       - Nothing[ b |]
+      | Just[ a | (x : a) ] - f[ x ]
+
+usemonads : (m : (- : *) *)(- : (a : *)(- : a) m[ a ])(- : (a : *)(b : *)(- : m[ a ])(- : (- : a) m[ b ]) m[ b ]) m[ Nat ] =
+  (m : (- : *) *)
+    (return : (a : *)(- : a) m[ a ])(bind : (a : *)(b : *)(- : m[ a ])(- : (- : a) m[ b ]) m[ b ])
+      bind[ Nat, Nat | return[ Nat | S[ Z. ] ], (n : Nat) return[ Nat | plus[ n, S[ S[ Z. ] ] ] ] ]
+
+uselist : List[ Nat ] = usemonads[ List | listreturn, listbind ]
+
+usemaybe : Maybe[ Nat ] = usemonads[ Maybe | maybereturn, maybebind ]

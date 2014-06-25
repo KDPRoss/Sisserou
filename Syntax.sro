@@ -1,0 +1,124 @@
+-- Sisserou -- A linguistic toy based on System F Omega   --
+--                                                        --
+-- Copyright 2K14 DP Constructions                        --
+--            and K.D.P.Ross <KDPRoss@gmail.com>          --
+--                                                        --
+-- This codebase is licensed for the following purposes   --
+-- only:                                                  --
+--                                                        --
+-- - study of the code                                    --
+--                                                        --
+-- - use of the unaltered code to compile the interpreter --
+--   for noncommercial educational and entertainment      --
+--   purposes only                                        --
+--                                                        --
+-- - gratis redistribution of the code in entirety and in --
+--   unaltered form for any aforementioned purpose        --
+--                                                        --
+-- The code may not be used for any other purposes,       --
+-- including but not limited to:                          --
+--                                                        --
+-- - any commercial purpose                               --
+--                                                        --
+-- - use by any governmentally-affiliated organisation    --
+--                                                        --
+-- - connection to any external system for any useful     --
+--   purpose whatsoever                                   --
+
+
+
+
+
+-- Curlies will denote metavariables. Double curlies will
+-- 'define' classes informally.
+
+-- var  x ::= {{Var's match regexp '[a-z0-9][a-zA-Z0-9']'}}
+-- atom c ::= {{Atoms match regexp '[A-Z][a-zA-Z0-9']'}}
+
+-- kind k ::= *             -- base kind
+--          | (- : {k}) {k} -- arrow kind
+
+new type Nat  : *
+new type Pair : (- : *)(- : *) *
+new type List : (- : *) *
+
+-- type t ::= {x}                      -- type variable
+--          | ({x} : {k}) {t}          -- type abstraction
+--          | (- : {t}) {t}            -- arrow type
+--          | {c}                      -- type constructor
+--          | < {t}, {{...}}, {t} >    -- tuple type
+--          | {t}[ {t}, {{...}}, {t} ] -- type application
+
+new cons Z : Nat
+new cons S : (- : Nat) Nat
+
+new cons Pair : (a : *)(b : *)(- : < a, b >) Pair[ a, b ]
+
+new cons Nil  : (a : *) List[ a ]
+new cons Cons : (a : *)(- : a)(- : List[ a ]) List[ a ]
+
+-- pat p ::= ({x} : {t})                                  -- variable
+--         | {c}.                                         -- data constructor
+--         | {c}[ {t}, {{...}}, {t} | {p}, {{...}}, {p} ] -- data constructor application, both types and patterns
+--         | {c}[ {t}, {{...}}, {t} |]                    -- data constructor type application
+--         | {c}[ {p}, {{...}}, {p} ]                     -- data constructor pattern application
+--         | < {p}, {{...}}, {p} >                        -- tuple pattern
+
+-- exp e ::= {x}                                          -- variable
+--         | ({x} : {t}) {e}                              -- value abstraction
+--         | ({x} : {k}) {e}                              -- type abstraction
+--         | {e}[ {t}, {{...}}, {t} | {e}, {{...}}, {e} ] -- application, both types and expressions
+--         | {e}[ {t}, {{...}}, {t} |]                    -- type application
+--         | {e}[ {e}, {{...}}, {e} ]                     -- expression application
+--         | case {e} of | {p} - {e} {{...}} | {p} - {e}  -- discrimination
+--         | {c}.                                         -- data constructor
+--         | {c}[ {t}, {{...}}, {t} | {e}, {{...}}, {e} ] -- data constructor application, both types and expressions
+--         | {c}[ {t}, {{...}}, {t} |]                    -- data constructor type application
+--         | {c}[ {e}, {{...}}, {e} ]                     -- data constructor expression application
+--         | < {e}, {{...}}, {e} >                        -- tuple
+--         | fix ({x} : {t}) {e}                          -- fixpoint
+
+plus : (- : Nat)(- : Nat) Nat =
+  fix (p : (- : Nat)(- : Nat) Nat)
+    (m : Nat)(n : Nat)
+      case m of
+      | Z.              - n
+      | S[ (m' : Nat) ] - S[ p[ m', n ] ]
+
+swap : (a : *)(b : *)(- : Pair[ a, b ]) Pair[ b, a ] =
+  (a : *)(b : *)
+    (p : Pair[ a, b ])
+      case p of
+      | Pair[ a, b | < (x : a), (y : b) > ] - Pair[ b, a | < y, x > ]
+
+map : (a : *)(b : *)(- : (- : a) b)(- : List[ a ]) List[ b ] =
+  (a : *)(b : *)
+    (f : (- : a) b)
+      fix (map : (- : List[ a ]) List[ b ])
+        (xs : List[ a ])
+          case xs of
+          | Nil[ a |]                              - Nil[ b |]
+          | Cons[ a | (x : a), (xs' : List[ a ]) ] - Cons[ b | f[ x ], map[ xs' ] ]
+
+-- Just to make this a complete example, let's tie things
+-- together. This will also show some of the recommended
+-- syntactic practices that make using Sisserou possible
+-- without going crazy.
+
+myNums : List[ Nat ] =
+  Cons[ Nat
+      | S[ S[ Z. ] ],
+  Cons[ Nat
+      | S[ S[ S[ S[ Z. ] ] ] ],
+  Cons[ Nat
+      | S[ S[ S[ S[ S[ Z. ] ] ] ] ],
+        Nil[ Nat |]
+      ]
+      ]
+      ]
+
+addOneToEach : (- : List[ Nat ]) List[ Nat ] =
+  map[ Nat, Nat | plus[ S[ Z. ] ] ]
+
+myNewNums : List[ Nat ] =
+  addOneToEach[ myNums ]

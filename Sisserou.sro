@@ -1,0 +1,1374 @@
+-- Sisserou -- A linguistic toy based on System F Omega   --
+--                                                        --
+-- Copyright 2K14 DP Constructions                        --
+--            and K.D.P.Ross <KDPRoss@gmail.com>          --
+--                                                        --
+-- This codebase is licensed for the following purposes   --
+-- only:                                                  --
+--                                                        --
+-- - study of the code                                    --
+--                                                        --
+-- - use of the unaltered code to compile the interpreter --
+--   for noncommercial educational and entertainment      --
+--   purposes only                                        --
+--                                                        --
+-- - gratis redistribution of the code in entirety and in --
+--   unaltered form for any aforementioned purpose        --
+--                                                        --
+-- The code may not be used for any other purposes,       --
+-- including but not limited to:                          --
+--                                                        --
+-- - any commercial purpose                               --
+--                                                        --
+-- - use by any governmentally-affiliated organisation    --
+--                                                        --
+-- - connection to any external system for any useful     --
+--   purpose whatsoever                                   --
+
+
+
+
+
+-- ========== Basic Types ========== --
+
+new type Unit : *
+new cons Unit : Unit
+
+new type Bool  : *
+new cons True  : Bool
+new cons False : Bool
+
+new type Nat : *
+new cons S   : (- : Nat) Nat
+new cons Z   : Nat
+
+new type List : (- : *) *
+new cons Nil  : (a : *) List[ a ]
+new cons Cons : (a : *)(- : a)(- : List[ a ]) List[ a ]
+
+new type Maybe   : (- : *) *
+new cons Just    : (a : *)(- : a) Maybe[ a ]
+new cons Nothing : (a : *) Maybe[ a ]
+
+
+
+-- ========== Functional Combinators ========== --
+
+id : (a : *)(- : a) a =
+  (a : *)
+    (x : a)
+      x
+
+curry : (a : *)(b : *)(c : *)(- : (- : < a, b >) c)(- : a)(- : b) c =
+  (a : *)(b : *)(c : *)
+    (f : (- : < a, b >) c)(x : a)(y : b)
+      f[ < x, y > ]
+
+uncurry : (a : *)(b : *)(c : *)(- : (- : a)(- : b) c)(- : < a, b >) c =
+  (a : *)(b : *)(c : *)
+    (f : (- : a)(- : b) c)(p : < a, b >)
+      case p of
+      | < (x : a), (y : b) > - f[ x, y ]
+
+
+
+-- ========== Boolean Logic ========== --
+
+not : (- : Bool) Bool =
+  (p : Bool)
+    case p of
+    | True.  - False.
+    | False. - True.
+
+and : (- : Bool)(- : Bool) Bool =
+  (p : Bool)(q : Bool)
+    case p of
+    | True.  - q
+    | False. - False.
+
+
+
+-- ========== Arithmetic ========== --
+
+eqNat : (- : Nat)(- : Nat) Bool =
+  (m : Nat)(n : Nat)
+  case < m, n > of
+  | < Z.,             Z. >               - True.
+  | < S[ (m' : Nat) ], S[ (n' : Nat) ] > - eqNat[ m', n' ]
+  | (- : < Nat, Nat >)                   - False.
+
+
+
+-- ========== `Monad` Definitions ========== --
+
+bindMaybe : (a : *)(b : *)(- : Maybe[ a ])(- : (- : a) Maybe[ b ]) Maybe[ b ] =
+  (a : *)(b : *)(f : Maybe[ a ])(g : (- : a) Maybe[ b ])
+    case f of
+    | Nothing[ a |]       - Nothing[ b |]
+    | Just[ a | (x : a) ] - g[ x ]
+
+returnMaybe : (a : *)(- : a) Maybe[ a ] = Just.
+
+failMaybe : (a : *) Maybe[ a ] = Nothing.
+
+
+
+-- ========== Lists ========== --
+
+length : (a : *)(- : List[ a ]) Nat =
+  (a : *)
+    fix (loop : (- : List[ a ]) Nat)
+      (xs : List[ a ])
+        case xs of
+        | Nil[ a |]                              - Z.
+        | Cons[ a | (- : a), (xs' : List[ a ]) ] - S[ loop[ xs' ] ]
+
+map : (a : *)(b : *)(- : (- : a) b)(- : List[ a ]) List[ b ] =
+  (a : *)(b : *)(f : (- : a) b)
+    fix (loop : (- : List[ a ]) List[ b ])
+      (xs : List[ a ])
+        case xs of
+        | Nil[ a |]                              - Nil[ b |]
+        | Cons[ a | (x : a), (xs' : List[ a ]) ] - Cons[ b | f[ x ], loop[ xs' ] ]
+
+filter : (a : *)(- : (- : a) Bool)(- : List[ a ]) List[ a ] =
+  (a : *)(p : (- : a) Bool)
+    fix (filter : (- : List[ a ]) List[ a ])
+      (xs : List[ a ])
+        case xs of
+        | Nil[ a |]                              - xs
+        | Cons[ a | (x : a), (xs' : List[ a ]) ] - (case p[ x ] of
+                                                    | True.  - Cons[ a | x, filter[ xs' ] ]
+                                                    | False. - filter[ xs' ]
+                                                   )
+
+all : (a : *)(- : (- : a) Bool)(- : List[ a ]) Bool =
+  (a : *)(p : (- : a) Bool)
+    fix (loop : (- : List[ a ]) Bool)
+      (xs : List[ a ])
+        case xs of
+        | Nil[ a |]                             - True.
+        | Cons[ a | (x : a), (xs : List[ a ]) ] - (case p[ x ] of
+                                                   | True.  - loop[ xs ]
+                                                   | False. - False.
+                                                  )
+
+zipWith : (a : *)(b : *)(c : *)(- : (- : a)(- : b) c)(- : List[ a ])(- : List[ b ]) List[ c ] =
+  (a : *)(b : *)(c : *)
+    (f : (- : a)(- : b) c)
+      fix (loop : (- : List[ a ])(- : List[ b ]) List[ c ])
+        (xs : List[ a ])(ys : List[ b ])
+          case < xs, ys > of
+          | < Cons[ a | (x : a), (xs : List[ a ]) ], Cons[ b | (y : b), (ys : List[ b ]) ] > - Cons[ c | f[ x, y ], loop[ xs , ys ] ]
+          | (- : < List[ a ], List[ b ] >)                                                  - Nil[ c |]
+
+elem : (a : *)(- : (- : a)(- : a) Bool)(- : a)(- : List[ a ]) Bool =
+  (a : *)(eq : (- : a)(- : a) Bool)(x : a)
+    fix (elem : (- : List[ a ]) Bool)
+      (ys : List[ a ])
+        case ys of
+        | Nil[ a |]                              - False.
+        | Cons[ a | (y : a), (ys' : List[ a ]) ] - (case eq[ x, y ] of
+                                                    | True.  - True.
+                                                    | False. - elem[ ys' ]
+                                                   )
+
+nub : (a : *)(- : (- : a)(- : a) Bool)(- : List[ a ]) List[ a ] =
+  (a : *)(eq : (- : a)(- : a) Bool)
+    (fix (loop : (- : List[ a ])(- : List[ a ]) List[ a ])
+       (rsf : List[ a ])(xs : List[ a ])
+         case xs of
+         | Nil[ a |]                              - rsf
+         | Cons[ a | (x : a), (xs' : List[ a ]) ] - (case elem[ a | eq, x, rsf ] of
+                                                     | False. - loop[ Cons[ a | x, rsf ], xs' ]
+                                                     | True.  - loop[ rsf, xs' ]
+                                                    )
+    )[ Nil[ a |] ]
+
+foldl : (a : *)(b : *)(- : (- : a)(- : b) a)(- : a)(- : List[ b ]) a =
+  (a : *)(b : *)(f : (- : a)(- : b) a)
+    fix (fold : (- : a)(- : List[ b ]) a)
+      (acc : a)(xs : List[ b ])
+        case xs of
+        | Nil[ b |]                              - acc
+        | Cons[ b | (x : b), (xs' : List[ b ]) ] - fold[ f[ acc, x ], xs' ]
+
+foldl1 : (a : *)(- : (- : a)(- : a) a)(- : List[ a ]) a =
+  (a : *)
+    (f : (- : a)(- : a) a)(xs : List[ a ])
+      case xs of
+      | Cons[ a | (x : a), (xs : List[ a ]) ] - foldl[ a, a | f, x, xs ]
+
+pair : (a : *)(b : *)(- : a)(- : b) < a, b > =
+  (a : *)(b : *)
+    (x : a)(y : b)
+      < x, y >
+
+fst : (a : *)(b : *)(- : < a, b >) a =
+  (a : *)(b : *)
+    (p : < a, b >)
+      case p of
+      | < (x : a), (- : b) > - x
+
+snd : (a : *)(b : *)(- : < a, b >) b =
+  (a : *)(b : *)
+    (p : < a, b >)
+      case p of
+      | < (- : a), (y : b) > - y
+
+zip : (a : *)(b : *)(- : List[ a ])(- : List[ b ]) List[ < a, b > ] =
+  (a : *)(b : *)
+    zipWith[ a, b, < a, b > | pair[ a, b |] ]
+
+reverse : (a : *)(- : List[ a ]) List[ a ] =
+  (a : *)
+    (fix (loop : (- : List[ a ])(- : List[ a ]) List[ a ])
+       (acc : List[ a ])(xs : List[ a ])
+         case xs of
+         | Nil[ a |]                              - acc
+         | Cons[ a | (x : a), (xs' : List[ a ]) ] - loop[ Cons[ a | x, acc ], xs' ]
+    )[ Nil[ a |] ]
+
+unzip : (a : *)(b : *)(- : List[ < a, b > ]) < List[ a ], List[ b ] > =
+  (a : *)(b : *)
+    (fix (loop : (- : List[ a ])(- : List[ b ])(- : List[ < a, b > ]) < List[ a ], List[ b ] >)
+       (xs : List[ a ])(ys : List[ b ])(ps : List[ < a, b > ])
+         case ps of
+         | Nil[ < a, b > |]                                                  - < reverse[ a | xs ], reverse[ b | ys ] >
+         | Cons[ < a, b > | < (x : a), (y : b) >, (ps' : List[ < a, b > ]) ] - loop[ Cons[ a | x, xs ], Cons[ b | y, ys ], ps' ]
+    )[ Nil[ a |], Nil[ b |] ]
+
+unzipWith : (a : *)(b : *)(c : *)(- : (- : a) < b, c >)(- : List[ a ]) < List[ b ], List[ c ] > =
+  (a : *)(b : *)(c : *)
+    (f : (- : a) < b, c > )(xs : List[ a ])
+      unzip[ b, c | map[ a, < b, c > | f, xs ] ]
+
+concat : (a : *)(- : List[ a ])(- : List[ a ]) List[ a ] =
+  (a : *)(xs : List[ a ])(ys : List[ a ])
+    (fix (loop : (- : List[ a ]) List[ a ])
+       (xs : List[ a ])
+         case xs of
+         | Nil[ a |]                              - ys
+         | Cons[ a | (x : a), (xs' : List[ a ]) ] - Cons[ a | x, loop[ xs' ] ]
+    )[ xs ]
+
+flatten : (a : *)(- : List[ List[ a ] ]) List[ a ] =
+  (a : *)
+    foldl[ List[ a ], List[ a ] | concat[ a |], Nil[ a |] ]
+
+lookup : (a : *)(b : *)(- : (- : a)(- : a) Bool)(- : a)(- : List[ < a, b > ]) Maybe[ b ] =
+  (a : *)(b : *)(eq : (- : a)(- : a) Bool)(toFind : a)
+    fix (loop : (- : List[ < a, b > ]) Maybe[ b ])
+      (xs : List[ < a, b > ])
+        case xs of
+        | Nil[ < a, b > |]                                                  - Nothing[ b |]
+        | Cons[ < a, b > | < (k : a), (v : b) >, (xs' : List[ < a, b > ]) ] - (case eq[ toFind, k ] of
+                                                                                | True.  - Just[ b | v ]
+                                                                                | False. - loop[ xs' ]
+                                                                               )
+
+
+
+-- ========== Environments ========== --
+
+new type Env : (- : *) *
+new cons Env : (a : *)(- : List[ < Nat, a > ]) Env[ a ]
+
+envProj : (a : *)(- : Env[ a ])(- : Nat) Maybe[ a ] =
+  (a : *)(g : Env[ a ])(k : Nat)
+    case g of
+    | Env[ a | (xs : List[ < Nat, a > ]) ] - lookup[ Nat, a | eqNat, k, xs ]
+
+envEmpty : (a : *) Env[ a ] =
+  (a : *)
+    Env[ a | Nil[ < Nat, a > |] ]
+
+envAdd : (a : *)(- : Env[ a ])(- : Nat)(- : a) Env[ a ] =
+  (a : *)(g : Env[ a ])(k : Nat)(v : a)
+    case g of
+    | Env[ a | (xs : List[ < Nat, a > ]) ] - Env[ a | Cons[ < Nat, a > | < k, v >, xs ] ]
+
+-- envJoin[ ... | xs, ys ] == bindings in ys shadow bindings in xs
+envJoin : (a : *)(- : Env[ a ])(- : Env[ a ]) Env[ a ] =
+  (a : *)(xs : Env[ a ])(ys : Env[ a ])
+    case < xs, ys > of
+    | < Env[ a | (xs : List[ < Nat, a > ]) ], Env[ a | (ys : List[ < Nat, a > ]) ] > - Env[ a | concat[ < Nat, a > | ys, xs ] ]
+
+envDom : (a : *)(- : Env[ a ]) List[ Nat ] =
+  (a : *)
+    (g : Env[ a ])
+      case g of
+      | Env[ a | (bs : List[ < Nat, a > ]) ] - map[ < Nat, a >, Nat | fst[ Nat, a |], bs ]
+
+
+
+-- ========== Term Representation ========== --
+
+new type Kind : *
+new cons Star : Kind
+new cons KArr : (- : Kind)(- : Kind) Kind
+
+eqKind : (- : Kind)(- : Kind) Bool =
+  (k : Kind)(k' : Kind)
+    case < k, k' > of
+    | < Star., Star. >                                                         - True.
+    | < KArr[ (k1 : Kind), (k2 : Kind) ], KArr[ (k1' : Kind), (k2' : Kind) ] > - and[ eqKind[ k1, k1' ], eqKind[ k2, k2' ] ]
+    | (- : < Kind, Kind >)                                                     - False.
+
+new type Type  : *
+new cons TVar  : (- : Nat) Type
+new cons TAbs  : (- : Nat)(- : Kind)(- : Type) Type
+new cons TArr  : (- : Type)(- : Type) Type
+new cons TCons : (- : Nat) Type
+new cons TTup  : (- : List[ Type ]) Type
+new cons TApp  : (- : Type)(- : Type) Type
+
+new type Pat  : *
+new cons PVar : (- : Nat)(- : Type) Pat
+new cons PVal : (- : Nat)(- : List[ Type ])(- : List[ Pat ]) Pat
+new cons PTup : (- : List[ Pat ]) Pat
+
+new type Exp   : *
+new cons Var   : (- : Nat) Exp
+new cons Abs   : (- : Nat)(- : Type)(- : Exp) Exp
+new cons AbsT  : (- : Nat)(- : Kind)(- : Exp) Exp
+new cons App   : (- : Exp)(- : Exp) Exp
+new cons AppT  : (- : Exp)(- : Type) Exp
+new cons Case  : (- : Exp)(- : List[ < Pat, Exp > ]) Exp
+new cons CVal  : (- : Nat)(- : List[ Type ])(- : List[ Exp ]) Exp
+new cons Tup   : (- : List[ Exp ]) Exp
+new cons Fix   : (- : Nat)(- : Type)(- : Exp) Exp
+new cons Close : (- : Exp)(- : Env[ Exp ]) Exp
+
+
+
+-- ========== State+Failure Monad ========== --
+
+new type TypeMonad : (- : *)(- : *) *
+new cons TypeMonad : (st : *)(a : *)(- : (- : st) Maybe[ < st, a > ]) TypeMonad[ st, a ]
+
+runType : (st : *)(a : *)(- : st)(- : TypeMonad[ st, a ]) Maybe[ a ] =
+  (st : *)(a : *)
+    (st : st)(m : TypeMonad[ st, a ])
+      case m of
+      | TypeMonad[ st, a | (m' : (- : st) Maybe[ < st, a > ]) ] - (case m'[ st ] of
+                                                                   | Just[ < st, a > | < (st' : st), (x : a) > ] - Just[ a | x ]
+                                                                   | Nothing[ < st, a > |]                       - Nothing[ a |]
+                                                                  )
+
+returnType : (st : *)(a : *)(- : a) TypeMonad[ st, a ] =
+  (st : *)(a : *)
+    (x : a)
+      TypeMonad[ st, a | (st : st) Just[ < st, a > | < st, x > ] ]
+
+bindType : (st : *)(a : *)(b : *)(- : TypeMonad[ st, a ])(- : (- : a) TypeMonad[ st, b ]) TypeMonad[ st, b ] =
+  (st : *)
+    let tm : (- : *) * = TypeMonad[ st ] in
+    (a : *)(b : *)
+      (f : tm[ a ])(g : (- : a) tm[ b ])
+        let body : (- : st) Maybe[ < st,  b > ] =
+          (st : st)
+            case f of
+            | TypeMonad[ st, a | (f' : (- : st) Maybe[ < st, a > ]) ] -
+                (case f'[ st ] of
+                 | Nothing[ < st, a > |]                      - Nothing[ < st, b > |]
+                 | Just[ < st, a > | < (st : st), (x : a) > ] - (case g[ x ] of
+                                                                  | TypeMonad[ st, b | (g' : (- : st) Maybe[ < st, b > ]) ] - g'[ st ]
+                                                                 )
+                )
+        in TypeMonad[ st, b | body ]
+
+failType : (st : *)(a : *) TypeMonad[ st, a ] =
+  (st : *)(a : *)
+    TypeMonad[ st, a | (st : st) Nothing[ < st, a > |] ]
+
+getSt : (st : *) TypeMonad[ st, st ] =
+  (st : *)
+    TypeMonad[ st, st | (st : st) Just[ < st, st > | < st, st > ] ]
+
+setSt : (st : *) (- : st) TypeMonad[ st, Unit ] =
+  (st : *)(st : st)
+    TypeMonad[ st, Unit | (st' : st) Just[ < st, Unit > | < st, Unit. > ] ]
+
+mapM : (m : (- : *) *)(- : (a : *)(- : a) m[ a ])(- : (a : *)(b : *)(- : m[ a ])(- : (- : a) m[ b ]) m[ b ])(a : *)(b : *)(- : (- : a) m[ b ])(- : List[ a ]) m[ List[ b ] ] =
+  (m : (- : *) *)
+    (return : (a : *)(- : a) m[ a ])(bind : (a : *)(b : *)(- : m[ a ])(- : (- : a) m[ b ]) m[ b ])
+      (a : *)(b : *)
+        (f : (- : a) m[ b ])
+          fix (loop : (- : List[ a ]) m[ List[ b ] ])
+            (xs : List[ a ])
+              case xs of
+              | Nil[ a |]                              - return[ List[ b ] | Nil[ b |] ]
+              | Cons[ a | (x : a), (xs' : List[ a ]) ] - bind[ b, List[ b ]
+                                                             | f[ x ], (y : b)
+                                                         bind[ List[ b ], List[ b ]
+                                                             | loop[ xs' ], (ys : List[ b ])
+                                                               return[ List[ b ] | Cons[ b | y, ys ] ]
+                                                             ]
+                                                             ]
+
+zipWithM : (m : (- : *) *)(- : (a : *)(- : a) m[ a ])(- : (a : *)(b : *)(- : m[ a ])(- : (- : a) m[ b ]) m[ b ])(a : *)(b : *)(c : *)(- : (- : a)(- : b) m[ c ])(- : List[ a ])(- : List[ b ]) m[ List[ c ] ] =
+  (m : (- : *) *)
+    (return : (a : *)(- : a) m[ a ])(bind : (a : *)(b : *)(- : m[ a ])(- : (- : a) m[ b ]) m[ b ])
+      (a : *)(b : *)(c : *)
+        (f : (- : a)(- : b) m[ c ])(xs : List[ a ])(ys : List[ b ])
+          mapM[ m | return, bind ][ < a, b >, c | uncurry[ a, b, m[ c ] | f ], zip[ a, b | xs , ys ] ]
+
+returnT : (a : *)(- : a) TypeMonad[ Nat, a ]                                                                                       = returnType[ Nat |]
+bindT : (a : *)(b : *)(- : TypeMonad[ Nat, a ])(- : (- : a) TypeMonad[ Nat, b ]) TypeMonad[ Nat, b ]                               = bindType[ Nat |]
+failT : (a : *) TypeMonad[ Nat, a ]                                                                                                = failType[ Nat |]
+getT : TypeMonad[ Nat, Nat ]                                                                                                       = getSt[ Nat |]
+setT : (- : Nat) TypeMonad[ Nat, Unit ]                                                                                            = setSt[ Nat |]
+mapT : (a : *)(b : *)(- : (- : a) TypeMonad[ Nat, b ])(- : List[ a ]) TypeMonad[ Nat, List[ b ] ]                                  = mapM[ TypeMonad[ Nat ] | returnT, bindT ]
+zipWithT : (a : *)(b : *)(c : *)(- : (- : a)(- : b) TypeMonad[ Nat, c ])(- : List[ a ])(- : List[ b ]) TypeMonad[ Nat, List[ c ] ] = zipWithM[ TypeMonad[ Nat ] | returnT, bindT ]
+
+iterT : (a : *)(- : (- : a) TypeMonad[ Nat, Unit ])(- : List[ a ]) TypeMonad[ Nat, Unit ] =
+  (a : *)
+    (f : (- : a) TypeMonad[ Nat, Unit ])(xs : List[ a ])
+      bindT[ List[ Unit ], Unit
+           | mapT[ a, Unit | f, xs ], (ig : List[ Unit ])
+             returnT[ Unit | Unit. ]
+           ]
+
+gensym : TypeMonad[ Nat, Nat ] =
+  bindT[ Nat, Nat
+       | getT, (x : Nat)
+  bindT[ Unit, Nat
+       | setT[ x ], (ig : Unit)
+         returnT[ Nat | x ]
+       ]
+       ]
+
+
+
+-- ========== Implementation of the Type System ========== --
+
+-- Here's the first 'interesting' function written in
+-- Sisserou! Goodness, this is verbose. #NotAsBadAsJava
+
+-- We can't make the assumption that type constructors and
+-- type variables are drawn from disjoint sets like the
+-- Haskell implementation does -- any `Nat` can be used for
+-- either -- as such, we'll need *two* kinding environments.
+kindOfType : (- : Env[ Kind ])(- : Env[ Kind ])(- : Type) TypeMonad[ Nat, Kind ] =
+  let tm : (- : *) * = TypeMonad[ Nat ] in
+  (g : Env[ Kind ])(gCons : Env[ Kind ])(t : Type)
+    let maybeToT : (a : *)(- : Maybe[ a ]) tm[ a ] =
+      (a : *)(m : Maybe[ a ])
+        case m of
+        | Nothing[ a |]        - failT[ a |]
+        | Just[ a | (v : a ) ] - returnT[ a | v ]
+    in
+    case t of
+    | TVar[ (x : Nat) ]                         - maybeToT[ Kind | envProj[ Kind | g, x ] ]
+    | TAbs[ (x : Nat), (k : Kind), (t : Type) ] - kindOfType[ envAdd[ Kind | g, x, k ], gCons, t ]
+    | TArr[ (t : Type), (t' : Type) ]           - bindT[ Kind, Kind
+                                                       | kindOfType[ g, gCons, t ], (ig : Kind)
+                                                         kindOfType[ g, gCons, t' ]
+                                                       ]
+    | TCons[ (c : Nat) ]                        - maybeToT[ Kind | envProj[ Kind | gCons, c ] ]
+    | TTup[ (ts : List[ Type ]) ]               - (let checkKind : (- : Type) tm[ Unit ] =
+                                                     (t : Type)
+                                                       bindT[ Kind, Unit
+                                                            | kindOfType[ g, gCons, t ], (k : Kind)
+                                                              case k of
+                                                              | Star.       - returnT[ Unit | Unit. ]
+                                                              | (- : Kind)  - failT[ Unit |]
+                                                            ]
+                                                   in
+                                                   bindT[ Unit, Kind
+                                                        | iterT[ Type | checkKind, ts ], (ig : Unit)
+                                                          returnT[ Kind | Star. ]
+                                                        ]
+                                                  )
+    | TApp[ (t : Type), (t' : Type) ]           - bindT[ Kind, Kind
+                                                       | kindOfType[ g, gCons, t ], (k : Kind)
+                                                         bindT[ Kind, Kind
+                                                              | kindOfType[ g, gCons, t' ], (k' : Kind)
+                                                                case k of
+                                                                | KArr[ (k1 : Kind), (k2 : Kind) ] - (case eqKind[ k1, k' ] of
+                                                                                                      | True.  - returnT[ Kind | k2 ]
+                                                                                                      | False. - failT[ Kind |]
+                                                                                                     )
+                                                                | Star.                            - failT[ Kind |]
+                                                              ]
+                                                       ]
+
+reduceBase : (- : (- : Nat)(- : Type)(- : Type) TypeMonad[ Nat, Type ])(- : Type) TypeMonad[ Nat, Type ] =
+  (subst : (- : Nat)(- : Type)(- : Type) TypeMonad[ Nat, Type ])
+    fix (reduce : (- : Type) TypeMonad[ Nat, Type ])
+      (t : Type)
+        case t of
+        | TApp[ (t1 : Type), (t2 : Type) ]          - bindT[ Type, Type
+                                                           | reduce[ t1 ], (t1' : Type)
+                                                      bindT[ Type, Type
+                                                           | reduce[ t2 ], (t2' : Type)
+                                                             case t1' of
+                                                             | TAbs[ (x : Nat), (- : Kind), (t' : Type) ] - subst[ x, t2, t' ]
+                                                             | (- : Type)                                 - returnT[ Type | TApp[ t1', t2' ] ]
+                                                           ]
+                                                           ]
+        | TAbs[ (x : Nat), (k : Kind), (t : Type) ] - bindT[ Type, Type
+                                                           | reduce[ t ], (t' : Type)
+                                                             returnT[ Type | TAbs[ x, k, t' ] ]
+                                                           ]
+        | TArr[ (t1 : Type), (t2 : Type) ]          - bindT[ Type, Type
+                                                           | reduce[ t1 ], (t1' : Type)
+                                                      bindT[ Type, Type
+                                                           | reduce[ t2 ], (t2' : Type)
+                                                             returnT[ Type | TArr[ t1', t2' ] ]
+                                                           ]
+                                                           ]
+        | TTup[ (ts : List[ Type ]) ]               - bindT[ List[ Type ], Type
+                                                           | mapT[ Type, Type | reduce, ts ], (ts' : List[ Type ])
+                                                             returnT[ Type | TTup[ ts' ] ]
+                                                           ]
+        | (t : Type)                                - returnT[ Type | t ]
+
+eqTypeBase : (- : (- : Nat)(- : Type)(- : Type) TypeMonad[ Nat, Type ])(- : Type)(- : Type) TypeMonad[ Nat, Bool ] =
+  (subst : (- : Nat)(- : Type)(- : Type) TypeMonad[ Nat, Type ])
+    fix (eq : (- : Type)(- : Type) TypeMonad[ Nat, Bool ])
+      (t1 : Type)(t2 : Type)
+        case < t1, t2 > of
+        | < TVar[ (x : Nat) ],                            TVar[ (y : Nat) ] >                            - returnT[ Bool | eqNat[ x, y ] ]
+        | < TArr[ (t1 : Type), (t1' : Type) ],            TArr[ (t2 : Type), (t2' : Type) ] >            - bindT[ Bool, Bool
+                                                                                                                | eq[ t1, t2 ], (r1 : Bool)
+                                                                                                           bindT[ Bool, Bool
+                                                                                                                | eq[ t1', t2' ], (r2 : Bool)
+                                                                                                                  returnT[ Bool | and[ r1, r2 ] ]
+                                                                                                                ]
+                                                                                                                ]
+        | < TCons[ (c1 : Nat) ],                          TCons[ (c2 : Nat) ] >                          - returnT[ Bool | eqNat[ c1, c2 ] ]
+        | < TApp[ (t1 : Type), (t1' : Type) ],            TApp[ (t2 : Type), (t2' : Type) ] >            - bindT[ Bool, Bool
+                                                                                                                | eq[ t1, t2 ], (r1 : Bool)
+                                                                                                           bindT[ Bool, Bool
+                                                                                                                | eq[ t1', t2' ], (r2 : Bool)
+                                                                                                                  returnT[ Bool | and[ r1, r2 ] ]
+                                                                                                                ]
+                                                                                                                ]
+        | < TTup[ (ts1 : List[ Type ]) ],                 TTup[ (ts2 : List[ Type ]) ] >                 - (let shortCircuitAll : (- : List[ Type ])(- : List[ Type ]) TypeMonad[ Nat, Bool ] =
+                                                                                                              fix (shortCircuitAll : (- : List[ Type ])(- : List[ Type ]) TypeMonad[ Nat, Bool ])
+                                                                                                                (ts : List[ Type ])(us : List[ Type ])
+                                                                                                                  case < ts, us > of
+                                                                                                                  | < Nil[ Type |],                                    Nil[ Type |] >                                    - returnT[ Bool | True. ]
+                                                                                                                  | < Cons[ Type | (t : Type), (ts' : List[ Type ]) ], Cons[ Type | (u : Type), (us' : List[ Type ]) ] > - bindT[ Bool, Bool
+                                                                                                                                                                                                                                | eq[ t, u ], (r : Bool)
+                                                                                                                                                                                                                                  (case r of
+                                                                                                                                                                                                                                   | False. - returnT[ Bool | False. ]
+                                                                                                                                                                                                                                   | True.  - shortCircuitAll[ ts', us' ]
+                                                                                                                                                                                                                                  )
+                                                                                                                                                                                                                                ]
+                                                                                                                  | (- : < List[ Type ], List[ Type ] >)                                                                 - returnT[ Bool | False. ]
+                                                                                                            in
+                                                                                                            shortCircuitAll[ ts1, ts2 ]
+                                                                                                           )
+        | < TAbs[ (x1 : Nat), (k1 : Kind), (t1 : Type) ], TAbs[ (x2 : Nat), (k2 : Kind), (t2 : Type) ] > - (case eqKind[ k1, k2 ] of
+                                                                                                            | False. - returnT[ Bool | False. ]
+                                                                                                            | True.  - bindT[ Nat, Bool
+                                                                                                                            | getT, (x' : Nat)
+                                                                                                                       bindT[ Type, Bool
+                                                                                                                            | subst[ x1, TVar[ x' ], t1 ], (t1' : Type)
+                                                                                                                       bindT[ Type, Bool
+                                                                                                                            | subst[ x2, TVar[ x' ], t2 ], (t2' : Type)
+                                                                                                                              eq[ t1', t2' ]
+                                                                                                                            ]
+                                                                                                                            ]
+                                                                                                                            ]
+                                                                                                           )
+        | (- : < Type, Type >)                                                                           - returnT[ Bool | False. ]
+
+freeVars : (- : Type) List[ Nat ] =
+  (t : Type)
+    let body : (- : Type) List[ Nat ] =
+      fix (freeVars : (- : Type) List[ Nat ])
+        (t : Type)
+          case t of
+          | TVar[ (x : Nat) ]                          - Cons[ Nat | x, Nil[ Nat |] ]
+          | TAbs[ (x : Nat), (k : Kind), (t' : Type) ] - filter[ Nat | (y : Nat) not[ eqNat[ x, y ] ], freeVars[ t' ] ]
+          | TArr[ (t1 : Type), (t2 : Type) ]           - concat[ Nat | freeVars[ t1 ], freeVars[ t2 ] ]
+          | TCons[ (- : Nat) ]                         - Nil[ Nat |]
+          | TTup[ (ts : List[ Type ]) ]                - flatten[ Nat | map[ Type, List[ Nat ] | freeVars, ts ] ]
+          | TApp[ (t1 : Type), (t2 : Type) ]           - concat[ Nat | freeVars[ t1 ], freeVars[ t2 ] ]
+    in
+    nub[ Nat | eqNat, body[ t ] ]
+
+substEnv : (a : *)(- : (- : Nat)(- : Type)(- : a) TypeMonad[ Nat, a ])(- : Nat)(- : Type)(- : Env[ a ]) TypeMonad[ Nat, Env[ a ] ] =
+  (a : *)
+    (subst : (- : Nat)(- : Type)(- : a) TypeMonad[ Nat, a ])(x : Nat)(t : Type)(g : Env[ a ])
+      case g of
+      | Env[ a | (bs : List[ < Nat, a > ]) ] - (let substBind : (- : < Nat, a >) TypeMonad[ Nat, < Nat, a > ] =
+                                                  (b : < Nat, a >)
+                                                    case b of
+                                                    | < (y : Nat), (v : a) > - bindT[ a, < Nat, a >
+                                                                                    | subst[ x, t, v ], (v' : a)
+                                                                                      returnT[ < Nat, a > | < y, v' > ]
+                                                                                    ]
+                                                in
+                                                bindT[ List[ < Nat, a > ], Env[ a ]
+                                                     | mapT[ < Nat, a >, < Nat, a > | substBind, bs ], (bs' : List[ < Nat, a > ])
+                                                       returnT[ Env[ a ] | Env[ a | bs' ] ]
+                                                     ]
+                                             )
+
+-- subst[ x, t', t ] := t[ x := t' ]
+subst : (- : Nat)(- : Type)(- : Type) TypeMonad[ Nat, Type ] =
+  (y : Nat)(tR : Type)(t : Type)
+    case t of
+    | TVar[ (x : Nat) ]                          - (case eqNat[ x, y ] of
+                                                    | True.  - returnT[ Type | tR ]
+                                                    | False. - returnT[ Type | t ]
+                                                   )
+    | TAbs[ (x : Nat), (k : Kind), (t' : Type) ] - (case elem[ Nat | eqNat, x, freeVars[ t' ] ] of
+                                                    | True.  - bindT[ Nat, Type
+                                                                    | gensym, (x' : Nat)
+                                                               bindT[ Type, Type
+                                                                    | subst[ x, TVar[ x' ], t' ], (t'' : Type)
+                                                                      subst[ y, tR, TAbs[ x', k, t'' ] ]
+                                                                    ]
+                                                                    ]
+                                                    | False. - bindT[ Type, Type
+                                                                    | subst[ y, tR, t' ], (t'' : Type)
+                                                                      returnT[ Type | TAbs[ x, k, t'' ] ]
+                                                                    ]
+                                                   )
+    | TArr[ (t1 : Type), (t2 : Type) ]           - bindT[ Type, Type
+                                                        | subst[ y, tR, t1 ], (t1' : Type)
+                                                   bindT[ Type, Type
+                                                        | subst[ y, tR, t2 ], (t2' : Type)
+                                                          returnT[ Type | TArr[ t1', t2' ] ]
+                                                        ]
+                                                        ]
+    | TTup[ (ts : List[ Type ]) ]                - bindT[ List[ Type ], Type
+                                                        | mapT[ Type, Type | subst[ y, tR ], ts ], (ts' : List[ Type ])
+                                                          returnT[ Type | TTup[ ts' ] ]
+                                                        ]
+    | TApp[ (t1 : Type), (t2 : Type) ]           - bindT[ Type, Type
+                                                        | subst[ y, tR, t1 ], (t1' : Type)
+                                                   bindT[ Type, Type
+                                                        | subst[ y, tR, t2 ], (t2' : Type)
+                                                          returnT[ Type | TApp[ t1', t2' ] ]
+                                                        ]
+                                                        ]
+    | (- : Type)                                 - returnT[ Type | t ]
+
+substPat : (- : Nat)(- : Type)(- : Pat) TypeMonad[ Nat, Pat ] =
+  (y : Nat)(tR : Type)(p : Pat)
+    case p of
+    | PVar[ (x : Nat), (t : Type) ]                              - bindT[ Type, Pat
+                                                                        | subst[ y, tR, t ], (t' : Type)
+                                                                          returnT[ Pat | PVar[ x, t' ] ]
+                                                                        ]
+    | PVal[ (c : Nat), (ts : List[ Type ]), (ps : List[ Pat ]) ] - bindT[ List[ Type ], Pat
+                                                                        | mapT[ Type, Type | subst[ y, tR ], ts ], (ts' : List[ Type ])
+                                                                   bindT[ List[ Pat ], Pat
+                                                                        | mapT[ Pat, Pat | substPat[ y, tR ], ps ], (ps' : List[ Pat ])
+                                                                          returnT[ Pat | PVal[ c, ts', ps' ] ]
+                                                                        ]
+                                                                        ]
+    | PTup[ (ps : List[ Pat ]) ]                                 - bindT[ List[ Pat ], Pat
+                                                                        | mapT[ Pat, Pat | substPat[ y, tR ], ps ], (ps' : List[ Pat ])
+                                                                          returnT[ Pat | PTup[ ps' ] ]
+                                                                        ]
+
+substExp : (- : Nat)(- : Type)(- : Exp) TypeMonad[ Nat, Exp ] =
+  (y : Nat)(tR : Type)(e : Exp)
+    case e of
+    | Abs[ (x : Nat), (t : Type), (e' : Exp) ]                   - bindT[ Type, Exp
+                                                                        | subst[ y, tR, t ], (t' : Type)
+                                                                   bindT[ Exp, Exp
+                                                                        | substExp[ y, tR, e' ], (e'' : Exp)
+                                                                          returnT[ Exp | Abs[ x, t', e'' ] ]
+                                                                        ]
+                                                                        ]
+    | AbsT[ (x : Nat), (k : Kind), (e' : Exp) ]                  - bindT[ Exp, Exp
+                                                                        | substExp[ y, tR, e' ], (e'' : Exp)
+                                                                          returnT[ Exp | AbsT[ x, k, e'' ] ]
+                                                                        ]
+    | App[ (e1 : Exp), (e2 : Exp) ]                              - bindT[ Exp, Exp
+                                                                        | substExp[ y, tR, e1 ], (e1' : Exp)
+                                                                   bindT[ Exp, Exp
+                                                                        | substExp[ y, tR, e2 ], (e2' : Exp)
+                                                                          returnT[ Exp | App[ e1', e2' ] ]
+                                                                        ]
+                                                                        ]
+    | AppT[ (e' : Exp), (t : Type) ]                             - bindT[ Exp, Exp
+                                                                        | substExp[ y, tR, e' ], (e'' : Exp)
+                                                                   bindT[ Type, Exp
+                                                                        | subst[ y, tR, t ], (t' : Type)
+                                                                          returnT[ Exp | AppT[ e'', t' ] ]
+                                                                        ]
+                                                                        ]
+    | Tup[ (es : List[ Exp ]) ]                                  - bindT[ List[ Exp ], Exp
+                                                                        | mapT[ Exp, Exp | substExp[ y, tR ], es ], (es' : List[ Exp ])
+                                                                          returnT[ Exp | Tup[ es' ] ]
+                                                                        ]
+    | Case[ (e : Exp), (ls : List[ < Pat, Exp > ]) ]             - (let substAlt : (- : < Pat, Exp >) TypeMonad[ Nat, < Pat, Exp > ] =
+                                                                      (l : < Pat, Exp >)
+                                                                        case l of
+                                                                        | < (p : Pat), (e : Exp) > - bindT[ Pat, < Pat, Exp >
+                                                                                                          | substPat[ y, tR, p ], (p' : Pat)
+                                                                                                     bindT[ Exp, < Pat, Exp >
+                                                                                                          | substExp[ y, tR, e ], (e' : Exp)
+                                                                                                            returnT[ < Pat, Exp > | < p', e' > ]
+                                                                                                          ]
+                                                                                                          ]
+                                                                    in
+                                                                    bindT[ Exp, Exp
+                                                                         | substExp[ y, tR, e ], (e' : Exp)
+                                                                    bindT[ List[ < Pat, Exp > ], Exp
+                                                                         | mapT[ < Pat, Exp >, < Pat, Exp > | substAlt, ls ], (ls' : List[ < Pat, Exp > ])
+                                                                           returnT[ Exp | Case[ e', ls' ] ]
+                                                                         ]
+                                                                         ]
+                                                                   )
+    | CVal[ (c : Nat), (ts : List[ Type ]), (es : List[ Exp ]) ] - bindT[ List[ Type ], Exp
+                                                                        | mapT[ Type , Type | subst[ y, tR ], ts ], (ts' : List[ Type ])
+                                                                   bindT[ List[ Exp ], Exp
+                                                                        | mapT[ Exp, Exp | substExp[ y, tR ], es ], (es' : List[ Exp ])
+                                                                          returnT[ Exp | CVal[ c, ts', es' ] ]
+                                                                        ]
+                                                                        ]
+    | Tup[ (es : List[ Exp ]) ]                                  - bindT[ List[ Exp ], Exp
+                                                                        | mapT[ Exp, Exp | substExp[ y, tR ], es ], (es' : List[ Exp ])
+                                                                          returnT[ Exp | Tup[ es' ] ]
+                                                                        ]
+    | Fix[ (x : Nat), (t : Type), (e : Exp) ]                    - bindT[ Type, Exp
+                                                                        | subst[ y, tR, t ], (t' : Type)
+                                                                   bindT[ Exp, Exp
+                                                                        | substExp[ y, tR, e ], (e' : Exp)
+                                                                          returnT[ Exp | Fix[ x, t', e' ]
+                                                                        ]
+                                                                        ]
+                                                                        ]
+    | Close[ (e : Exp), (g : Env[ Exp ]) ]                       - bindT[ Exp, Exp
+                                                                        | substExp[ y, tR, e ], (e' : Exp)
+                                                                   bindT[ Env[ Exp ], Exp
+                                                                        | substEnv[ Exp | substExp, y, tR, g ], (g' : Env[ Exp ])
+                                                                          returnT[ Exp | Close[ e', g' ] ]
+                                                                        ]
+                                                                        ]
+    | (- : Exp)                                                  - returnT[ Exp | e ]
+
+eqType : (- : Type)(- : Type) TypeMonad[ Nat, Bool ] = eqTypeBase[ subst ]
+reduce : (- : Type) TypeMonad[ Nat, Type ]           = reduceBase[ subst ]
+
+inNormalForm : (- : Type) Bool =
+  let noTLQuantifiers : (- : Type) Bool =
+    fix (noTLQuantifiers : (- : Type) Bool)
+      (t : Type)
+        case t of
+        | TAbs[ (- : Nat), (- : Kind), (- : Type) ] - False.
+        | TArr[ (- : Type), (t' : Type) ]           - noTLQuantifiers[ t' ]
+        | (- : Type)                                - True.
+  in
+  (t : Type)
+    case t of
+    | TAbs[ (- : Nat), (- : Kind), (t' : Type) ] - inNormalForm[ t' ]
+    | TArr[ (- : Type), (t' : Type) ]            - noTLQuantifiers[ t' ]
+    | (- : Type)                                 - True.
+
+-- Sisserou requires all terms to have kind `Star.`.
+returnCheckKind : (- : Env[ Kind ])(- : Env[ Kind ])(- : Type) TypeMonad[ Nat, Type ] =
+  (d : Env[ Kind ])(dCons : Env[ Kind ])(t : Type)
+    bindT[ Kind, Type
+         | kindOfType[ d, dCons, t ], (k : Kind)
+           case k of
+           | Star.       - returnT[ Type | t ]
+           | (- : Kind)  - failT[ Type |]
+         ]
+
+eqTypeBeta : (- : Type)(- : Type) TypeMonad[ Nat, Bool ] =
+  (t1 : Type)(t2 : Type)
+    bindT[ Type, Bool
+         | reduce[ t1 ], (t1' : Type)
+    bindT[ Type, Bool
+         | reduce[ t2 ], (t2' : Type)
+           eqType[ t1', t2' ]
+         ]
+         ]
+
+-- This is implemented *completely* differently to the
+-- Haskell version: That was written in the absence of
+-- tuples [[ They were a late 're:addition'. ]]; here, we've
+-- taken advantage of the observation that once type
+-- parameters have been dispensed with, we can simply re:use
+-- the tuple code for constructed values.
+inferPat : (- : Env[ Kind ])(- : Env[ Kind ])(- : Env[ Type ])(- : Env[ Type ])(- : Type)(- : Pat) TypeMonad[ Nat, Env[ Type ] ] =
+  (d : Env[ Kind ])(dCons : Env[ Kind ])(g : Env[ Type ])(gCons : Env[ Type ])(t : Type)(p : Pat)
+    case p of
+    | PVar[ (x : Nat), (t' : Type) ]                             - bindT[ Bool, Env[ Type ]
+                                                                        | eqTypeBeta[ t, t' ], (eq : Bool)
+                                                                          case eq of
+                                                                          | True.  - returnT[ Env[ Type ] | envAdd[ Type | envEmpty[ Type |], x, t' ] ]
+                                                                          | False. - failT[ Env[ Type ] |]
+                                                                        ]
+    | PTup[ (ps : List[ Pat ]) ]                                 - bindT[ Type, Env[ Type ]
+                                                                        | reduce[ t ], (t' : Type)
+                                                                          case t' of
+                                                                          | TTup[ (ts : List[ Type ]) ] - bindT[ List[ Env[ Type ] ], Env[ Type ]
+                                                                                                               | zipWithT[ Type, Pat, Env[ Type ] | inferPat[ d, dCons, g, gCons ], ts, ps ], (gs : List[ Env[ Type ] ])
+                                                                                                                 (let ds : List[ Nat ] =
+                                                                                                                    flatten[ Nat | map[ Env[ Type ], List[ Nat ] | envDom[ Type |], gs ] ]
+                                                                                                                  in
+                                                                                                                  case eqNat[ length[ Nat | ds ], length[ Nat | nub[ Nat | eqNat, ds ] ] ] of
+                                                                                                                  | True.  - returnT[ Env[ Type ] | foldl1[ Env[ Type ] | envJoin[ Type |], gs ] ]
+                                                                                                                  | False. - failT[ Env[ Type ] |]
+                                                                                                                 )
+                                                                                                               ]
+                                                                          | (- : Type)                  - failT[ Env[ Type ] |]
+                                                                        ]
+    | PVal[ (c : Nat), (ts : List[ Type ]), (ps : List[ Pat ]) ] - (let matchParams : (- : Type)(- : List[ Type ])(- : List[ Pat ]) TypeMonad[ Nat, < List[ < Pat, Type > ], Type > ] =
+                                                                      fix (matchParams : (- : Type)(- : List[ Type ])(- : List[ Pat ]) TypeMonad[ Nat, < List[ < Pat, Type > ], Type > ])
+                                                                        (t : Type)(ts : List[ Type ])(ps : List[ Pat ])
+                                                                          case < t, ts, ps > of
+                                                                          | < TAbs[ (x : Nat), (k : Kind), (t' : Type) ], Cons[ Type | (ts1 : Type), (ts' : List[ Type ]) ], (ps : List[ Pat ]) >                          - bindT[ Kind, < List[ < Pat, Type > ], Type >
+                                                                                                                                                                                                                                  | kindOfType[ d, dCons, ts1 ], (k' : Kind)
+                                                                                                                                                                                                                                    case eqKind[ k, k' ] of
+                                                                                                                                                                                                                                    | True.  - bindT[ Type, < List[ < Pat, Type > ], Type >
+                                                                                                                                                                                                                                                    | subst[ x, ts1, t' ], (t'' : Type)
+                                                                                                                                                                                                                                                      matchParams[ t'', ts', ps ]
+                                                                                                                                                                                                                                                    ]
+                                                                                                                                                                                                                                    | False. - failT[ < List[ < Pat, Type > ], Type > |]
+                                                                                                                                                                                                                                  ]
+                                                                          | < TArr[ (t1 : Type), (t2 : Type) ],           Nil[ Type |],                                      Cons[ Pat | (p : Pat), (ps : List[ Pat ]) ] > - bindT[ < List[ < Pat, Type > ], Type >, < List[ < Pat, Type > ], Type >
+                                                                                                                                                                                                                                  | matchParams[ t2, ts, ps ], (ptst : < List[ < Pat, Type > ], Type >)
+                                                                                                                                                                                                                                    case ptst of
+                                                                                                                                                                                                                                    | < (pts : List[ < Pat, Type > ]), (t : Type) > - returnT[ < List[ < Pat, Type > ], Type > | < Cons[ < Pat, Type > | < p, t1 >, pts ], t > ]
+                                                                                                                                                                                                                                  ]
+                                                                          | < (t' : Type),                                Nil[ Type |],                                      Nil[ Pat |] >                                 - returnT[ < List[ < Pat, Type > ], Type > | < Nil[ < Pat, Type > |], t' > ]
+                                                                          | (- : < Type, List[ Type ], List[ Pat ] >)                                                                                                      - failT[ < List[ < Pat, Type > ], Type > |]
+                                                                    in
+                                                                    case envProj[ Type | gCons, c ] of
+                                                                    | Nothing[ Type |]           - failT[ Env[ Type ] |]
+                                                                    | Just[ Type | (tc : Type) ] - bindT[ < List[ < Pat, Type > ], Type >, Env[ Type ]
+                                                                                                        | matchParams[ tc, ts, ps ], (ptst : < List[ < Pat, Type > ], Type >)
+                                                                                                          case ptst of
+                                                                                                          | < Nil[ < Pat, Type > |], (t' : Type) >         - bindT[ Bool, Env[ Type ]
+                                                                                                                                                                  | eqTypeBeta[ t, t' ], (eq : Bool)
+                                                                                                                                                                    case eq of
+                                                                                                                                                                    | True.  - returnT[ Env[ Type ] | envEmpty[ Type |] ]
+                                                                                                                                                                    | False. - failT[ Env[ Type ] |]
+                                                                                                                                                                  ]
+                                                                                                          | < (pts : List[ < Pat, Type > ]), (t' : Type) > - bindT[ Bool, Env[ Type ]
+                                                                                                                                                                  | eqTypeBeta[ t, t' ], (eq : Bool)
+                                                                                                                                                                    case eq of
+                                                                                                                                                                    | True.  - (case unzip[ Pat, Type | pts ] of
+                                                                                                                                                                                | < (ps' : List[ Pat ]), (ts' : List[ Type ]) > - inferPat[ d, dCons, g, gCons, TTup[ ts' ], PTup[ ps' ] ]
+                                                                                                                                                                               )
+                                                                                                                                                                    | False. - failT[ Env[ Type ] |]
+                                                                                                                                                                  ]
+                                                                                                        ]
+                                                                   )
+
+-- See discussion at `kindOfType`; likewise we'll need two
+-- each of kinding and typing environments.
+-- envProj : (a : *)(- : Env[ a ])(- : Nat) Maybe[ a ] =
+typeOfExp : (- : Env[ Kind ])(- : Env[ Kind ])(- : Env[ Type ])(- : Env[ Type ])(- : Exp) TypeMonad[ Nat, Type ] =
+  (d : Env[ Kind ])(dCons : Env[ Kind ])(g : Env[ Type ])(gCons : Env[ Type ])(e : Exp)
+    case e of
+    | Var[ (x : Nat) ]                                           - (case envProj[ Type | g, x ] of
+                                                                    | Nothing[ Type |]          - failT[ Type |]
+                                                                    | Just[ Type | (t : Type) ] - returnCheckKind[ d, dCons, t ]
+                                                                   )
+    | Abs[ (x : Nat), (t : Type), (e : Exp) ]                    - bindT[ Type, Type
+                                                                        | typeOfExp[ d, dCons, envAdd[ Type | g, x, t ], gCons, e ], (t' : Type)
+                                                                          returnCheckKind[ d, dCons, TArr[ t, t' ] ]
+                                                                        ]
+    | AbsT[ (x : Nat), (k : Kind), (e : Exp) ]                   - bindT[ Type, Type
+                                                                        | typeOfExp[ envAdd[ Kind | d, x, k ], dCons, g, gCons, e ], (t : Type)
+                                                                          returnCheckKind[ d, dCons, TAbs[ x, k, t ] ]
+                                                                        ]
+    | App[ (e1 : Exp), (e2 : Exp) ]                              - bindT[ Type, Type
+                                                                        | typeOfExp[ d, dCons, g, gCons, e1 ], (t1 : Type)
+                                                                   bindT[ Type, Type
+                                                                        | reduce[ t1 ], (t1' : Type)
+                                                                   bindT[ Type, Type
+                                                                        | typeOfExp[ d, dCons, g, gCons, e2 ], (t2 : Type)
+                                                                          case t1' of
+                                                                          | TArr[ (t : Type), (t' : Type) ] - bindT[ Bool, Type
+                                                                                                                   | eqTypeBeta[ t, t2 ], (eq : Bool)
+                                                                                                                     case eq of
+                                                                                                                     | True.  - returnCheckKind[ d, dCons, t' ]
+                                                                                                                     | False. - failT[ Type |]
+                                                                                                                   ]
+                                                                          | (- : Type)                      - failT[ Type |]
+                                                                        ]
+                                                                        ]
+                                                                        ]
+    | AppT[ (e : Exp), (t : Type) ]                              - bindT[ Type, Type
+                                                                        | typeOfExp[ d, dCons, g, gCons, e ], (te : Type)
+                                                                   bindT[ Type, Type
+                                                                        | reduce[ te ], (te' : Type)
+                                                                   bindT[ Kind, Type
+                                                                        | kindOfType[ d, dCons, t ], (k : Kind)
+                                                                          case te' of
+                                                                          | TAbs[ (x : Nat), (k' : Kind), (t' : Type) ] - (case eqKind[ k, k' ] of
+                                                                                                                           | True.  - bindT[ Type, Type
+                                                                                                                                           | subst[ x, t, t' ],
+                                                                                                                                             reduce
+                                                                                                                                           ]
+                                                                                                                           | False. - failT[ Type |]
+                                                                                                                          )
+                                                                          | (- : Type)                                  - failT[ Type |]
+                                                                        ]
+                                                                        ]
+                                                                        ]
+    | Case[ (e : Exp), (ls : List[ < Pat, Exp > ]) ]             - bindT[ Type, Type
+                                                                        | typeOfExp[ d, dCons, g, gCons, e ], (t : Type)
+                                                                   bindT[ List[ Type ], Type
+                                                                        | (let inferCase : (- : < Pat, Exp >) TypeMonad[ Nat, Type ] =
+                                                                             (l : < Pat, Exp >)
+                                                                               case l of
+                                                                               | < (p : Pat), (e : Exp) > - bindT[ Env[ Type ], Type
+                                                                                                                 | inferPat[ d, dCons, g, gCons, t, p ], (g' : Env[ Type ])
+                                                                                                                   typeOfExp[ d, dCons, envJoin[ Type | g, g' ], gCons, e ]
+                                                                                                                 ]
+                                                                           in
+                                                                           mapT[ < Pat, Exp >, Type | inferCase, ls ]
+                                                                          ), (ts : List[ Type ])
+                                                                          case ts of
+                                                                          | Nil[ Type |]                                   - failT[ Type |]
+                                                                          | Cons[ Type | (t : Type), (ts : List[ Type ]) ] - bindT[ List[ Bool ], Type
+                                                                                                                                  | mapT[ Type, Bool | eqTypeBeta[ t ], ts ], (eqs : List[ Bool ])
+                                                                                                                                    case all[ Bool | id[ Bool |], eqs ] of
+                                                                                                                                    | True.  - returnCheckKind[ d, dCons, t ]
+                                                                                                                                    | False. - failT[ Type |]
+                                                                                                                                  ]
+                                                                        ]
+                                                                        ]
+    | Fix[ (x : Nat), (t : Type), (e : Exp) ]                    - bindT[ Type, Type
+                                                                        | typeOfExp[ d, dCons, envAdd[ Type | g, x, t ], gCons, e ], (t' : Type)
+                                                                   bindT[ Bool, Type
+                                                                        | eqTypeBeta[ t, t' ], (eq : Bool)
+                                                                          case eq of
+                                                                          | True.  - returnCheckKind[ d, dCons, t ]
+                                                                          | False. - failT[ Type |]
+                                                                        ]
+                                                                        ]
+    | CVal[ (c : Nat), Nil[ Type |], Nil[ Exp |] ]               - (case envProj[ Type | gCons, c ] of
+                                                                    | Nothing[ Type |]          - failT[ Type |]
+                                                                    | Just[ Type | (t : Type) ] - returnCheckKind[ d, dCons, t ]
+                                                                   )
+    | CVal[ (c : Nat), (ts : List[ Type ]), (es : List[ Exp ]) ] - typeOfExp[ d, dCons, g, gCons, foldl[ Exp, Exp | App., foldl[ Exp, Type | AppT., CVal[ c, Nil[ Type |], Nil[ Exp |] ], ts ], es ] ]
+    | Tup[ (es : List[ Exp ]) ]                                  - bindT[ List[ Type ], Type
+                                                                        | mapT[ Exp, Type | typeOfExp[ d, dCons, g, gCons ], es ], (ts : List[ Type ])
+                                                                          returnCheckKind[ d, dCons, TTup[ ts ] ]
+                                                                        ]
+    | (- : Exp)                                                  - failT[ Type |]
+
+
+
+-- ========== Base Environments ========== --
+
+-- Much less sanity will be lost if we create mnemonics for
+-- various constructors rather than trying to 'address' them
+-- numerically.
+
+-- Type Constructors
+-- 0 : Unit
+-- 1 : Nat
+-- 2 : List
+
+unitT : Nat = Z.
+natT : Nat  = S[ unitT ]
+listT : Nat = S[ natT ]
+
+-- Data Constructors
+-- 3 : Unit
+-- 4 : Z
+-- 5 : S
+-- 6 : Nil
+-- 7 : Cons
+
+unit : Nat = S[ listT ]
+z    : Nat = S[ unit ]
+s    : Nat = S[ z ]
+nil  : Nat = S[ s ]
+cons : Nat = S[ nil ]
+
+tyConsEnv : Env[ Kind ] =
+  Env[ Kind
+     | Cons[ < Nat, Kind >
+           | < unitT, Star. >,
+       Cons[ < Nat, Kind >
+           | < natT, Star. >,
+       Cons[ < Nat, Kind >
+           | < listT, KArr[ Star., Star. ] >,
+             Nil[ < Nat, Kind > |]
+           ]
+           ]
+           ]
+     ]
+
+dataConsEnv : Env[ Type ] =
+  Env[ Type
+     | Cons[ < Nat, Type >
+           | < unit, TCons[ unitT ] >,
+       Cons[ < Nat, Type >
+           | < z, TCons[ natT ] >,
+       Cons[ < Nat, Type >
+           | < s, TArr[ TCons[ natT ], TCons[ natT ] ] >,
+       Cons[ < Nat, Type >
+           | < nil, TAbs[ Z., Star., TApp[ TCons[ listT ], TVar[ Z. ] ] ] >,
+       Cons[ < Nat, Type >
+           | < cons, TAbs[ Z., Star., TArr[ TVar[ Z. ], TArr[ TApp[ TCons[ listT ], TVar[ Z. ] ], TApp[ TCons[ listT ], TVar[ Z. ] ] ] ] ] >,
+             Nil[ < Nat, Type > |]
+           ]
+           ]
+           ]
+           ]
+           ]
+     ]
+
+testKindOfType : Maybe[ Kind ] = runType[ Nat, Kind | Z., case envProj[ Type | dataConsEnv, cons ] of | Just[ Type | (t : Type) ] - kindOfType[ envEmpty[ Kind |], tyConsEnv, t ] ]
+testTypeOfExp : Maybe[ Type ]  = runType[ Nat, Type | Z., typeOfExp[ envEmpty[ Kind |], tyConsEnv, envEmpty[ Type |], dataConsEnv, AbsT[ Z., Star., Abs[ Z., TVar[ Z. ], Var[ Z. ] ] ] ] ]
+
+
+
+-- ========== Let's Test Our Type System ========== --
+
+-- Now, for the real test: Can we check the type of `fac`?
+-- First, the normal Sisserou version:
+fac : (- : Nat) Nat =
+  let plus : (- : Nat)(- : Nat) Nat =
+    fix (plus : (- : Nat)(- : Nat) Nat)
+      (m : Nat)(n : Nat)
+        case m of
+        | Z.              - n
+        | S[ (m' : Nat) ] - S[ plus[ m', n ] ]
+  in
+  let mult : (- : Nat)(- : Nat) Nat =
+    fix (mult : (- : Nat)(- : Nat) Nat)
+      (m : Nat)(n : Nat)
+        case m of
+        | Z.              - Z.
+        | S[ (m' : Nat) ] - plus[ n, mult[ m', n ] ]
+  in
+  fix (fac : (- : Nat) Nat)
+    (m : Nat)
+      case m of
+      | Z.              - S[ Z. ]
+      | S[ (m' : Nat) ] - mult[ m, fac[ m' ] ]
+
+-- Let's desugar the `let`s:
+fac' : (- : Nat) Nat =
+  ((plus : (- : Nat)(- : Nat) Nat)
+     ((mult : (- : Nat)(- : Nat) Nat)
+       fix (fac : (- : Nat) Nat)
+         (m : Nat)
+           case m of
+           | Z.              - S[ Z. ]
+           | S[ (m' : Nat) ] - mult[ m, fac[ m' ] ]
+     )[ fix (mult : (- : Nat)(- : Nat) Nat)
+          (m : Nat)(n : Nat)
+            case m of
+            | Z.              - Z.
+            | S[ (m' : Nat) ] - plus[ n, mult[ m', n ] ]
+
+      ]
+  )[ fix (plus : (- : Nat)(- : Nat) Nat)
+       (m : Nat)(n : Nat)
+         case m of
+         | Z.              - n
+         | S[ (m' : Nat) ] - S[ plus[ m', n ] ]
+   ]
+
+facTest : Bool =
+  let five : Nat =
+    S[ S[ S[ S[ S[ Z. ] ] ] ] ]
+  in
+  eqNat[ fac[ five ], fac'[ five ] ]
+
+
+
+-- ========== Implementation of the Evaluator ========== --
+
+tryMatchPat : (- : Pat)(- : Exp) Maybe[ Env[ Exp ] ] =
+  (p : Pat)(v : Exp)
+    case < p, v > of
+    | < PVar[ (x : Nat), (- : Type) ],                             (- : Exp) >                                                  - returnMaybe[ Env[ Exp ] | envAdd[ Exp | envEmpty[ Exp |], x, v ] ]
+    | < PVal[ (c : Nat), (- : List[ Type ]), (ps : List[ Pat ]) ], CVal[ (c' : Nat), (- : List[ Type ]), (vs : List[ Exp ]) ] > - (case eqNat[ c, c' ] of
+                                                                                                                                   | True.  - tryMatchPat[ PTup[ ps ], Tup[ vs ] ]
+                                                                                                                                   | False. - failMaybe[ Env[ Exp ] |]
+                                                                                                                                  )
+    | < PTup[ (ps : List[ Pat ]) ],                                Tup[ (vs : List[ Exp ]) ] >                                  - bindMaybe[ List[ Env[ Exp ] ], Env[ Exp ]
+                                                                                                                                           | zipWithM[ Maybe | returnMaybe, bindMaybe ][ Pat, Exp, Env[ Exp ] | tryMatchPat, ps, vs ], (gs : List[ Env[ Exp ] ])
+                                                                                                                                             returnMaybe[ Env[ Exp ] | foldl[ Env[ Exp ], Env[ Exp ] | envJoin[ Exp |], envEmpty[ Exp |], gs ] ]
+                                                                                                                                           ]
+    | (- : < Pat, Exp >)                                                                                                        - failMaybe[ Env[ Exp ] |]
+
+reduceExp : (- : Env[ Exp ])(- : Exp) TypeMonad[ Nat, Exp ] =
+  (g : Env[ Exp ])(e : Exp)
+    case e of
+    | Var[ (x : Nat) ]                                                                                   - (case envProj[ Exp | g, x ] of
+                                                                                                            | Nothing[ Exp |]          - failT[ Exp |]
+                                                                                                            | Just[ Exp | (e' : Exp) ] - reduceExp[ g, e' ]
+                                                                                                           )
+    | Abs[ (- : Nat), (- : Type), (- : Exp) ]                                                            - returnT[ Exp | Close[ e, g ] ]
+    | AbsT[ (- : Nat), (- : Kind), (- : Exp) ]                                                           - returnT[ Exp | Close[ e, g ] ]
+    | App[ (e1 : Exp), (e2 : Exp) ]                                                                      - bindT[ Exp, Exp
+                                                                                                                | reduceExp[ g, e1 ], (v1 : Exp)
+                                                                                                           bindT[ Exp, Exp
+                                                                                                                | reduceExp[ g, e2 ], (v2 : Exp)
+                                                                                                                  case v1 of
+                                                                                                                  | Close[ Abs[ (x : Nat), (- : Type), (e' : Exp) ], (g' : Env[ Exp ]) ] - reduceExp[ envAdd[ Exp | g', x, v2 ], e' ]
+                                                                                                                  | CVal[ (c : Nat), (ts : List[ Type ]), (vs : List[ Exp ]) ]           - returnT[ Exp | CVal[ c, ts, concat[ Exp | vs, Cons[ Exp | v2, Nil[ Exp |] ] ] ] ]
+                                                                                                                  | (- : Exp)                                                            - failT[ Exp |]
+                                                                                                                ]
+                                                                                                                ]
+    | AppT[ (e' : Exp), (t : Type) ]                                                                     - bindT[ Exp, Exp
+                                                                                                                | reduceExp[ g, e' ], (v : Exp)
+                                                                                                                  case v of
+                                                                                                                  | Close[ AbsT[ (x : Nat), (- : Kind), (e'' : Exp) ], (g' : Env[ Exp ]) ] - bindT[ Exp, Exp
+                                                                                                                                                                                                  | substExp[ x, t, e'' ], (e''' : Exp)
+                                                                                                                                                                                             bindT[ Env[ Exp ], Exp
+                                                                                                                                                                                                  | substEnv[ Exp | substExp, x, t, g' ], (g'' : Env[ Exp ])
+                                                                                                                                                                                                    reduceExp[ g'', e''' ]
+                                                                                                                                                                                                  ]
+                                                                                                                                                                                                  ]
+                                                                                                                  | CVal[ (c : Nat), (ts : List[ Type ]), Nil[ Exp |] ]                    - returnT[ Exp | CVal[ c, concat[ Type | ts, Cons[ Type | t, Nil[ Type |] ] ], Nil[ Exp |] ] ]
+                                                                                                                  | (- : Exp)                                                              - failT[ Exp |]
+                                                                                                                ]
+    | Tup[ (es : List[ Exp ]) ]                                                                          - bindT[ List[ Exp ], Exp
+                                                                                                                | mapT[ Exp, Exp | reduceExp[ g ], es ], (vs : List[ Exp ])
+                                                                                                                  returnT[ Exp | Tup[ vs ] ]
+                                                                                                                ]
+    | Case[ (- : Exp), Nil[ < Pat, Exp > |] ]                                                            - failT[ Exp |]
+    | Case[ (e' : Exp), Cons[ < Pat, Exp > | < (p : Pat), (e'' : Exp) >, (ls : List[ < Pat, Exp > ]) ] ] - bindT[ Exp, Exp
+                                                                                                                | reduceExp[ g, e' ], (v : Exp)
+                                                                                                                  case tryMatchPat[ p, v ] of
+                                                                                                                  | Nothing[ Env[ Exp ] |]                 - reduceExp[ g, Case[ v, ls ] ]
+                                                                                                                  | Just[ Env[ Exp ] | (g' : Env[ Exp ]) ] - reduceExp[ envJoin[ Exp | g, g' ], e'' ]
+                                                                                                                ]
+    | CVal[ (c : Nat), (ts : List[ Type ]), (es : List[ Exp ]) ]                                         - bindT[ List[ Exp ], Exp
+                                                                                                                | mapT[ Exp, Exp | reduceExp[ g ], es ], (vs : List[ Exp ])
+                                                                                                                  returnT[ Exp | CVal[ c, ts, vs ] ]
+                                                                                                                ]
+    | Fix[ (x : Nat), (- : Type), (e' : Exp) ]                                                           - reduceExp[ envAdd[ Exp | g, x, e ], e' ]
+    | Close[ (- : Exp), (- : Env[ Exp ]) ]                                                               - returnT[ Exp | e ]
+
+
+
+-- ========== Numeric Conversions ========== --
+
+numToExternal : (- : Exp) Maybe[ Nat ] =
+  (v : Exp)
+    case v of
+    | CVal[ (c : Nat), (- : List[ Type ]), (vs : List[ Exp ]) ] - (case eqNat[ c, z ] of
+                                                                   | True.  - (case vs of
+                                                                               | Nil[ Exp |]       - returnMaybe[ Nat | Z. ]
+                                                                               | (- : List[ Exp ]) - failMaybe[ Nat |]
+                                                                              )
+                                                                   | False. - (case eqNat[ c, s ] of
+                                                                               | False. - failMaybe[ Nat |]
+                                                                               | True.  - (case vs of
+                                                                                           | Cons[ Exp | (v' : Exp), Nil[ Exp |] ] - bindMaybe[ Nat, Nat
+                                                                                                                                              | numToExternal[ v' ], (n : Nat)
+                                                                                                                                                returnMaybe[ Nat | S[ n ] ]
+                                                                                                                                              ]
+                                                                                           | (- : List[ Exp ])                     - failMaybe[ Nat |]
+                                                                                          )
+                                                                              )
+                                                                  )
+    | (- : Exp)                                                 - failMaybe[ Nat |]
+
+numToInternal : (- : Nat) Exp =
+  (n : Nat)
+    case n of
+    | Z.              - CVal[ z, Nil[ Type |], Nil[ Exp |] ]
+    | S[ (n' : Nat) ] - CVal[ s, Nil[ Type |], Cons[ Exp | numToInternal[ n' ], Nil[ Exp |] ] ]
+
+
+
+-- ========== Object Code ========== --
+
+-- Test that recursion / fixpoint is working properly.
+countDown : Exp =
+  let m : Nat = Z. in
+  let m' : Nat = S[ m ] in
+  let count : Nat = S[ m' ] in
+  let nat : Type = TCons[ natT ] in
+  Fix[ count, TArr[ nat, nat ] ,
+       Abs[ m, nat,
+            Case[ Var[ m ],
+                  Cons[ < Pat, Exp >
+                      | < PVal[ z, Nil[ Type |], Nil[ Pat |] ], CVal[ z, Nil[ Type |], Nil[ Exp |] ] >,
+                  Cons[ < Pat, Exp >
+                      | < PVal[ s, Nil[ Type |], Cons[ Pat | PVar[ m', nat ], Nil[ Pat |] ] ], CVal[ s, Nil[ Type |], Cons[ Exp | App[ Var[ count ], Var[ m' ] ], Nil[ Exp |] ] ] >,
+                        Nil[ < Pat, Exp > |]
+                      ]
+                      ]
+                ]
+          ]
+     ]
+
+plusNew : Exp =
+  let m : Nat = Z. in
+  let n : Nat = S[ m ] in
+  let m' : Nat = S[ n ] in
+  let plus : Nat = S[ m' ] in
+  let nat : Type = TCons[ natT ] in
+  Fix[ plus, TArr[ nat, TArr[ nat, nat ] ],
+       Abs[ m, nat,
+            Abs[ n, nat,
+                 Case[ Var[ m ],
+                       Cons[ < Pat, Exp >
+                           | < PVal[ z, Nil[ Type |], Nil[ Pat |] ], Var[ n ] >,
+                       Cons[ < Pat, Exp >
+                           | < PVal[ s, Nil[ Type |], Cons[ Pat | PVar[ m', nat ], Nil[ Pat |] ] ], CVal[ s, Nil[ Type |], Cons[ Exp | App[ App[ Var[ plus ], Var[ m' ] ], Var[ n ] ], Nil[ Exp |] ] ] >,
+                             Nil[ < Pat, Exp > |]
+                           ]
+                           ]
+                     ]
+               ]
+          ]
+     ]
+
+multNew : Exp =
+  let m : Nat = Z. in
+  let n : Nat = S[ m ] in
+  let m' : Nat = S[ n ] in
+  let mult : Nat = S[ m' ] in
+  let nat : Type = TCons[ natT ] in
+  Fix[ mult, TArr[ nat, TArr[ nat, nat ] ],
+       Abs[ m, nat,
+            Abs[ n, nat,
+                 Case[ Var[ m ],
+                       Cons[ < Pat, Exp >
+                           | < PVal[ z, Nil[ Type |], Nil[ Pat |] ], CVal[ z, Nil[ Type |], Nil[ Exp |] ] >,
+                       Cons[ < Pat, Exp >
+                           | < PVal[ s, Nil[ Type |], Cons[ Pat | PVar[ m', nat ], Nil[ Pat |] ] ], App[ App[ plusNew, App[ App[ Var[ mult ], Var[ m' ] ], Var[ n ] ] ], Var[ n ] ] >,
+                             Nil[ < Pat, Exp > |]
+                           ]
+                           ]
+                     ]
+               ]
+          ]
+     ]
+
+-- Huzzah! This works!
+-- `App[ facNew, succ[ succ[ succ[ zero ] ] ] ]`
+-- takes a while to run, but gives the correct result
+-- `reduceExpSimp[ App[ facNew, succ[ succ[ succ[ zero ] ] ] ] ] of | Just[ Exp | (m : Exp) ] - numToExternal[ m ]`
+facNew : Exp =
+  let m : Nat = Z. in
+  let m' : Nat = S[ m ] in
+  let fac : Nat = S[ m' ] in
+  let nat : Type = TCons[ natT ] in
+  Fix[ fac, TArr[ nat, nat ],
+       Abs[ m, nat,
+            Case[ Var[ m ],
+                  Cons[ < Pat, Exp >
+                      | < PVal[ z, Nil[ Type |], Nil[ Pat |] ], CVal[ s, Nil[ Type |], Cons[ Exp | CVal[ z, Nil[ Type |], Nil[ Exp |] ], Nil[ Exp |] ] ] >,
+                  Cons[ < Pat, Exp >
+                      | < PVal[ s, Nil[ Type |], Cons[ Pat | PVar[ m', nat ], Nil[ Pat |] ] ], App[ App[ multNew, Var[ m ] ], App[ Var[ fac ], Var[ m' ] ] ] >,
+                        Nil[ < Pat, Exp > |]
+                      ]
+                      ]
+                ]
+          ]
+     ]
+
+
+
+-- ========== Test Code ========== --
+
+-- We'll have to settle for a fairly loose definition of
+-- equality.
+eqishVal : (- : Exp)(- : Exp) Bool =
+  (e1 : Exp)(e2 : Exp)
+    case < e1, e2 > of
+    | < CVal[ (c1 : Nat), (ts1 : List[ Type ]), (vs1 : List[ Exp ]) ], CVal[ (c2 : Nat), (ts2 : List[ Type ]), (vs2 : List[ Exp ]) ] >             - (case and[ eqNat[ c1, c2 ], eqNat[ length[ Type | ts1 ], length[ Type | ts2 ] ] ] of
+                                                                                                                                                      | False. - False.
+                                                                                                                                                      | True.  - (case runType[ Nat, List[ Bool ] | Z., zipWithT[ Type, Type, Bool | eqTypeBeta, ts1, ts2 ] ] of
+                                                                                                                                                                  | Nothing[ List[ Bool ] |]                   - False.
+                                                                                                                                                                  | Just[ List[ Bool ] | (bs : List[ Bool ]) ] - (case all[ Bool | id[ Bool |], bs ] of
+                                                                                                                                                                                                                  | False. - False.
+                                                                                                                                                                                                                  | True.  - all[ Bool | id[ Bool |], zipWith[ Exp, Exp, Bool | eqishVal, vs1, vs2 ] ]
+                                                                                                                                                                                                                 )
+                                                                                                                                                                 )
+                                                                                                                                                     )
+    | < Tup[ (vs1 : List[ Exp ]) ], Tup[ (vs2 : List[ Exp ]) ] >                                                                                   - all[ Bool | id[ Bool |], zipWith[ Exp, Exp, Bool | eqishVal, vs1, vs2 ] ]
+    | < Close[ Abs[ (- : Nat), (t1 : Type), (- : Exp) ], (- : Env[ Exp ]) ], Close[ Abs[ (- : Nat), (t2 : Type), (- : Exp) ], (- : Env[ Exp ]) ] > - (case runType[ Nat, Bool | Z., eqTypeBeta[ t1, t2 ] ] of
+                                                                                                                                                      | Nothing[ Bool |]          - False.
+                                                                                                                                                      | Just[ Bool | (b : Bool) ] - b
+                                                                                                                                                     )
+    | (- : < Exp, Exp >)                                                                                                                           - False.
+
+inferTest : (- : Exp) Maybe[ Type ] =
+  (e : Exp)
+    runType[ Nat, Type | Z., typeOfExp[ envEmpty[ Kind |], tyConsEnv, envEmpty[ Type |], dataConsEnv, e ] ]
+
+reduceExpSimp : (- : Exp) Maybe[ Exp ] =
+  (e : Exp)
+    runType[ Nat, Exp | Z., reduceExp[ envEmpty[ Exp |], e ] ]
+
+runTypeTest : (- : Exp)(- : Maybe[ Type ]) Bool =
+  (e : Exp)(tM : Maybe[ Type ])
+    case < inferTest[ e ], tM > of
+    | < Just[ Type | (te : Type) ], Just[ Type | (t : Type) ] > - (case runType[ Nat, Bool | Z., eqTypeBeta[ te, t ] ] of
+                                                                   | Nothing[ Bool |]          - False.
+                                                                   | Just[ Bool | (b : Bool) ] - b
+                                                                  )
+    | < Nothing[ Type |], Nothing[ Type |] >                    - True.
+    | (- : < Maybe[ Type ], Maybe[ Type ] >)                    - False.
+
+runExpTest : (- : Exp)(- : Maybe[ Exp ]) Bool =
+  (e : Exp)(vM : Maybe[ Exp ])
+    case < runType[ Nat, Exp | Z., reduceExp[ envEmpty[ Exp |], e ] ], vM > of
+    | < Just[ Exp | (ve : Exp) ], Just[ Exp | (v : Exp) ] > - eqishVal[ ve, v ]
+    | < Nothing[ Exp |], Nothing[ Exp |] >                  - True.
+    | (- : < Maybe[ Exp ], Maybe[ Exp ] >)                  - False.
+
+runTest : (- : < Exp, Maybe[ Type ], Maybe[ Exp ] >) < Bool, Bool > =
+  (t : < Exp, Maybe[ Type ], Maybe[ Exp ] >)
+    case t of
+    | < (e : Exp), (tM : Maybe[ Type ]), (vM : Maybe[ Exp ]) > - < runTypeTest[ e, tM ], runExpTest[ e, vM ] >
+
+-- Trivial test: If this fails, we're in trouble.
+test0 : < Exp, Maybe[ Type ], Maybe[ Exp ] > =
+  < CVal[ z, Nil[ Type |], Nil[ Exp |] ],
+    Just[ Type | TCons[ natT ] ],
+    Just[ Exp | CVal[ z, Nil[ Type |], Nil[ Exp |] ] ]
+  >
+
+-- S @ Z =?= S[ Z ]
+test1 : < Exp, Maybe[ Type ], Maybe[ Exp ] > =
+  < App[ CVal[ s, Nil[ Type |], Nil[ Exp |] ], CVal[ z, Nil[ Type |], Nil[ Exp |] ] ],
+    Just[ Type | TCons[ natT ] ],
+    Just[ Exp | CVal[ s, Nil[ Type |], Cons[ Exp | CVal[ z, Nil[ Type |], Nil[ Exp |] ], Nil[ Exp |] ] ] ]
+  >
+
+-- 2 * 3 =?= 3 * 2
+test2 : < Exp, Maybe[ Type ], Maybe[ Exp ] > =
+  < App[ App[ multNew, numToInternal[ S[ S[ Z. ] ] ] ], numToInternal[ S[ S[ S[ Z. ] ] ] ] ],
+    Just[ Type | TCons[ natT ] ],
+    reduceExpSimp[ App[ App[ multNew, numToInternal[ S[ S[ S[ Z. ] ] ] ] ], numToInternal[ S[ S[ Z. ] ] ] ] ]
+  >
+
+-- fac 3 =?= 6
+-- Sadly, with multiple layers of interpretation, `fac 5` is
+-- a bit beyond what's practical.
+test3 : < Exp, Maybe[ Type ], Maybe[ Exp ] > =
+  < App[ facNew, numToInternal[ S[ S[ S[ Z. ] ] ] ] ],
+    Just[ Type | TCons[ natT ] ],
+    Just[ Exp | numToInternal[ S[ S[ S[ S[ S[ S[ Z. ] ] ] ] ] ] ] ]
+  >
+
+tests : List[ < Exp, Maybe[ Type ], Maybe[ Exp ] > ] =
+  let t : * = < Exp, Maybe[ Type ], Maybe[ Exp ] > in
+  Cons[ t
+      | test0,
+  Cons[ t
+      | test1,
+  Cons[ t
+      | test2,
+  Cons[ t
+      | test3,
+        Nil[ t |]
+      ]
+      ]
+      ]
+      ]
+
+runTests : List[ < Bool, Bool > ] = map[ < Exp, Maybe[ Type ], Maybe[ Exp ] >, < Bool, Bool > | runTest, tests ]
