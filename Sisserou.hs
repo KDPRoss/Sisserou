@@ -54,6 +54,7 @@ data Exp  = Var String
           | Case Exp [ (Pat, Exp) ]
           | CVal String [ Type ] [ Exp ]
           | Tup [ Exp ]
+          | Proj Int Exp
           | Fix String Type Exp
           | Close Exp (Env Exp)
 data Pat  = PVar String Type
@@ -219,6 +220,12 @@ dg@(d, g) |- Case e ls     = dg |- e >>= \ t ->
 (d, g)    |- CVal c [] []  = (liftTypingMonad $ g ==> c) >>= returnCheckKind d
 dg        |- CVal c ts es  = dg |- foldl App (foldl AppT (CVal c [] []) ts) es
 dg        |- Tup es        = mapM (dg |-) es >>= return .TTup
+dg        |- Proj n e      = dg |- e >>= \ t ->
+                             case t of
+                               TTup ts -> if n <= 0 || n > length ts
+                                             then fail $ "Cannot project from invalid index `" ++ show n ++ "` from type `" ++ show t ++ "`."
+                                             else return $ ts !! (n - 1)
+                               _       -> fail $ "Cannot project from non-tuple type `" ++ show t ++ "`."
 _         |- e             = fail $ "Can only type syntactically-denotable terms; received `" ++ show e ++ "`."
 
 
@@ -357,6 +364,8 @@ instance Subst Exp where
                                         return $ AppT e' t''
   subst (Tup es) y t'              = mapM subst' es >>= return . Tup
                                        where subst' e = subst e y t'
+  subst (Proj n e) y t'            = do e' <- subst e y t'
+                                        return $ Proj n e'
   subst (Case e ls) y t'           = do e'  <- subst e y t'
                                         ls' <- mapM substAlt ls
                                         return $ Case e' ls'
@@ -458,6 +467,7 @@ instance Show Exp where
   show (App e e')                = showS e ++ "[ " ++ showS e' ++ " ]"
   show (AppT e t)                = showS e ++ "[ " ++ show t ++ " |]"
   show (Tup es)                  = "< " ++ showCommas es ++ " >"
+  show (Proj n e)                = show n ++ "#" ++ showS e
   show (Case e ls)               = "case " ++ showS e ++ " of " ++ (intercalate " | " . map (\ (p, e) -> show p ++ " -> " ++ showS e) $ ls)
   show (CVal c [] [])            = c ++ "."
   show (CVal c ts [])            = c ++ "[ " ++ showCommas ts ++ " |]"
@@ -510,5 +520,6 @@ partialEvaluateTypes d (Case e ls)           = do e' <- partialEvaluateTypes d e
                                                   return $ Case e (zip ps es')
 partialEvaluateTypes d (CVal c ts es)        = mapM (partialEvaluateTypes d) es >>= return . CVal c ts
 partialEvaluateTypes d (Tup es)              = mapM (partialEvaluateTypes d) es >>= return . Tup
+partialEvaluateTypes d (Proj n e)            = partialEvaluateTypes d e >>= return . Proj n
 partialEvaluateTypes d (Fix x t e)           = partialEvaluateTypes d e >>= return . Fix x t
 partialEvaluateTypes _ e                     = return e

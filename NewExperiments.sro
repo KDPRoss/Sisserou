@@ -1,0 +1,231 @@
+-- Some basic types.
+
+new type Bool  : *
+new cons True  : Bool
+new cons False : Bool
+
+new type N : *
+new cons Z : N
+new cons S : (- : N) N
+
+new type List : (- : *) *
+new cons Nil  : (a : *) List[ a ]
+new cons Cons : (a : *)(- : a)(- : List[ a ]) List[ a ]
+
+-- ====================================================== --
+
+-- Basic Boolean combinators.
+
+and : (-, - : Bool) Bool =
+  (p, q : Bool)
+    case < p, q > of
+    | < True., True. >     - True.
+    | (- : < Bool, Bool >) - False.
+
+or : (-, - : Bool) Bool =
+  (p, q : Bool)
+    case < p, q > of
+    | < False., False. >   - False.
+    | (- : < Bool, Bool >) - True.
+
+not : (- : Bool) Bool =
+  (b : Bool)
+    case b of
+    | True.  - False.
+    | False. - True.
+
+-- ====================================================== --
+
+-- Basic Peano-arithmetic combinators.
+
+pred : (- : N) N =
+  (n : N)
+    case n of
+    | S[ (n : N) ] - n
+
+plus : (-, - : N) N =
+  (m, n : N)
+    case m of
+    | Z.           - n
+    | S[ (m : N) ] - S[ plus[ m, n ] ]
+
+mult : (-, - : N) N =
+  (m, n : N)
+    case m of
+    | Z.           - Z.
+    | S[ (m : N) ] - plus[ n, mult[ m, n ] ]
+
+fac : (- : N) N =
+  (n : N)
+    case n of
+    | Z.            - S[ Z. ]
+    | S[ (n' : N) ] - mult[ n, fac[ n' ] ]
+
+eqN : (-, - : N) Bool =
+  (m, n : N)
+    case < m, n > of
+    | < Z., Z. >                     - True.
+    | < S[ (m : N) ], S[ (n : N) ] > - eqN[ m, n ]
+    | (- : < N, N >)                 - False.
+
+-- ====================================================== --
+
+-- List combinators.
+
+length : (a : *)(- : List[ a ]) N =
+  (a : *)
+    fix (loop : (- : List[ a ]) N)
+      (xs : List[ a ])
+        case xs of
+        | Nil[ a |]                             - Z.
+        | Cons[ a | (- : a), (xs : List[ a ]) ] - S[ loop[ xs ] ]
+
+map : (a, b : *)(- : (- : a) b)(- : List[ a ]) List[ b ] =
+  (a, b : *)(f : (- : a) b)
+    fix (map : (- : List[ a ]) List[ b ])
+      (xs : List[ a ])
+        case xs of
+        | Nil[ a |]                             - Nil[ b |]
+        | Cons[ a | (x : a), (xs : List[ a ]) ] - Cons[ b | f[ x ], map[ xs ] ]
+
+range : (-, - : N) List[ N ] =
+  (m, n : N)
+    letrec loop : (- : N)(- : List[ N ]) List[ N ] =
+      (n : N)(rsf : List[ N ])
+        case eqN[ m, n ] of
+        | True.  - Cons[ N | m, rsf ]
+        | False. - loop[ pred[ n ], Cons[ N | n, rsf ] ]
+    in loop[ n, Nil[ N |] ]
+
+reverse : (a : *)(- : List[ a ]) List[ a ] =
+  (a : *)
+    letrec loop : (-, - : List[ a ]) List[ a ] =
+      (rsf, xs : List[ a ])
+        case xs of
+        | Nil[ a |]                             - rsf
+        | Cons[ a | (x : a), (xs : List[ a ]) ] - loop[ Cons[ a | x, rsf ], xs ]
+    in loop[ Nil[ a |] ]
+
+concat : (a : *)(-, - : List[ a ]) List[ a ] =
+  (a : *)(xs, ys : List[ a ])
+    letrec loop : (-, - : List[ a ]) List[ a ] =
+      (xs, ys : List[ a ])
+        case xs of
+        | Nil[ a |]                             - ys
+        | Cons[ a | (x : a), (xs : List[ a ]) ] - loop[ xs, Cons[ a | x, ys ] ]
+    in loop[ reverse[ a | xs ], ys ]
+
+fold : (a, b : *)(- : (- : a)(- : b) a)(- : a)(- : List[ b ]) a =
+  (a : *)(b : *)(f : (- : a)(- : b) a)
+    fix (loop : (- : a)(- : List[ b ]) a)
+      (a : a)(xs : List[ b ])
+        case xs of
+        | Nil[ b |]                             - a
+        | Cons[ b | (x : b), (xs : List[ b ]) ] - loop[ f[ a, x ], xs ]
+
+flatten : (a : *)(- : List[ List[ a ] ]) List[ a ] =
+  (a : *) fold[ List[ a ], List[ a ] | concat[ a |], Nil[ a |] ]
+
+flatMap : (a, b : *)(- : (- : a) List[ b ])(- : List[ a ]) List[ b ] =
+  (a, b : *)(f : (- : a) List[ b ])(xs : List[ a ])
+    flatten[ b | map[ a, List[ b ] | f, xs ] ]
+
+filter : (a : *)(- : (- : a) Bool)(- : List[ a ]) List[ a ] =
+  (a : *)(p : (- : a) Bool)
+    fix (loop : (- : List[ a ]) List[ a ])
+      (xs : List[ a ])
+        case xs of
+        | Nil[ a |]                             - Nil[ a |]
+        | Cons[ a | (x : a), (xs : List[ a ]) ] - (case p[ x ] of
+                                                   | True.  - Cons[ a | x, loop[ xs ] ]
+                                                   | False. - loop[ xs ]
+                                                  )
+
+eqList : (a : *)(- : (-, - : a) Bool)(-, - : List[ a ]) Bool =
+  (a : *)(eq : (-, - : a) Bool)
+    fix (loop : (-, - : List[ a ]) Bool)
+      (xs, ys : List[ a ])
+        case < xs, ys > of
+        | < Nil[ a |], Nil[ a |] >                                                         - True.
+        | < Cons[ a | (x : a), (xs : List[ a ]) ], Cons[ a | (y : a), (ys : List[ a ]) ] > - and[ eq[ x, y ], loop[ xs, ys ] ]
+        | (- : < List[ a ], List[ a ] >)                                                   - False.
+
+new type Unit : *
+new cons Unit : Unit
+
+testEq : (- : Unit) Bool =
+  (u : Unit)
+    let xs : List[ N ] = Cons[ N | Z., Cons[ N | S[ S[ Z. ] ], Cons[ N | S[ Z. ], Nil[ N |] ] ] ] in
+    eqList[ N | eqN, xs, reverse[ N | reverse[ N | xs ] ] ]
+
+-- ====================================================== --
+
+-- Let's actually do some things that we (probably) couldn't
+-- do in other languages.
+
+listFunny : (- : (a : *) List[ a ])(b : *)(- : b) List[ b ] =
+  (tl : (a : *) List[ a ])(b : *)(hd : b)
+    Cons[ b | hd, tl[ b |] ]
+
+selfApp : (- : (a : *)(- : a) a)(- : N) N =
+  (f : (a : *)(- : a) a)
+    f[ (a : *)(- : a) a | f ][ N |]
+
+-- ====================================================== --
+
+-- The following examples are adapted from 'Programming
+-- Exaples Requiring Polymorphic Recursion' by J.J.Hallett
+-- and A.J.Kfoury
+
+doubleCoupled : < N, Bool > =
+  letrec bs : < (a : *)(- : (- : a) a)(- : a) a,
+                (- : N) N,
+                (- : Bool) Bool
+              > =
+    < (a : *)(f : (- : a) a)(y : a) f[ f[ y ] ],
+      (v : N)
+        1#bs[ N | plus[ S[ Z. ] ], v ],
+      (w : Bool)
+        1#bs[ Bool | not, w ]
+    >
+  in < 2#bs[ Z. ], 3#bs[ True. ] >
+
+mycroftCoupled : < List[ N ], List[ Bool ] > =
+  letrec bs : < (a : *)(- : (- : a) a)(- : List[ a ]) List[ a ],
+                (- : List[ N ]) List[ N ],
+                (- : List[ Bool ]) List[ Bool ]
+              > =
+    < (a : *)(f : (- : a) a)(xs : List[ a ])
+        case xs of
+        | Nil[ a |]                             - xs
+        | Cons[ a | (x : a), (xs : List[ a ]) ] - Cons[ a | f[ x ], 1#bs[ a | f, xs ] ],
+      1#bs[ N | (n : N) mult[ n, n ] ],
+      1#bs[ Bool | not ]
+    >
+  in < 2#bs[ Cons[ N | S[ S[ Z. ] ], Cons[ N | S[ S[ S[ S[ Z. ] ] ] ], Nil[ N |] ] ] ],
+       3#bs[ Cons[ Bool | True., Cons[ Bool | False., Nil[ Bool |] ] ] ]
+     >
+
+sumList : N =
+  letrec bs : < (a : *)(- : a) a,
+                (- : List[ N ]) N
+              > =
+    < (a : *)(x : a) x,
+      (xs : List[ N ])
+        case xs of
+        | Nil[ N |]                             - Z.
+        | Cons[ N | (x : N), (xs : List[ N ]) ] - plus[ 1#bs[ N | x ], 2#bs[ 1#bs[ List[ N ] | xs ] ] ]
+    >
+  in 2#bs[ Cons[ N | S[ Z. ], Cons[ N | S[ S[ Z. ] ], Cons[ N | S[ S[ S[ Z. ] ] ], Nil[ N |] ] ] ] ]
+
+new type Tree : (- : *) *
+new cons Empty : (a : *) Tree[ a ]
+new cons Node : (a : *)(- : a)(- : Tree[ Tree[ a ] ]) Tree[ a ]
+
+collect : List[ N ] =
+  letrec collect : (a : *)(- : Tree[ a ]) List[ a ] =
+    (a : *)(t : Tree[ a ])
+      case t of
+      | Empty[ a |] - Nil[ a |]
+      | Node[ a | (v : a), (t : Tree[ Tree[ a ] ]) ] - Cons[ a | v, flatMap[ Tree[ a ], a | collect[ a |], collect[ Tree[ a ] | t ] ] ]
+  in collect[ N | Empty[ N |] ]

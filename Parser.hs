@@ -32,7 +32,7 @@
 module Parser where
 
 import Text.ParserCombinators.HuttonMeijer
-import Sisserou(Kind, Type, Exp, Pat, Kind(Star, KArr), Type(TVar, TAbs, TArr, TCons, TApp, TTup), Exp(Var, Abs, AbsT, App, AppT, Tup, Case, CVal, Fix), Pat(PVar, PVal, PTup), envEmpty, (|-), runTypingMonad, liftTypingMonad, (+>), (|==>), (|:-), Typing(TypeData, TypeError), Input(NewBind, NewType, NewCons, EvalExp), subst)
+import Sisserou(Kind, Type, Exp, Pat, Kind(Star, KArr), Type(TVar, TAbs, TArr, TCons, TApp, TTup), Exp(Var, Abs, AbsT, App, AppT, Tup, Proj, Case, CVal, Fix), Pat(PVar, PVal, PTup), envEmpty, (|-), runTypingMonad, liftTypingMonad, (+>), (|==>), (|:-), Typing(TypeData, TypeError), Input(NewBind, NewType, NewCons, EvalExp), subst)
 
 -- ===== Nicer Parser Combinators ===== --
 
@@ -77,6 +77,7 @@ p <?= q = p <*= many (string " ") <*= q
 l = letter +++ digit +++ char '\''
 i = (lower +++ digit) <*> many l >>> uncurry (:)
 c = upper <*> many l >>> uncurry (:)
+n = many1 digit >>> (read :: String -> Int)
 
 pParenthesised p = string "(" =?> p <?= string ")"
 
@@ -90,8 +91,8 @@ pTyp   = pTArr +++ pTAbs +++ pTApp +++ pSTyp
 pSTyp  = pTVar +++ pTCons +++ pParenthesised pTyp +++ pTTup
 pTVar  = i >>> TVar
 pTCons = c >>> TCons
-pTAbs  = pParenthesised (i <== string ":" <=> pKind) <*> (pTAbs +++ pTArr +++ (spaces =*> pTyp)) >>> \ ((x, k), t) -> TAbs x k t
-pTArr  = pParenthesised (string "- :" ==> pTyp) <*> (pTAbs +++ pTArr +++ (spaces =*> pTyp)) >>> uncurry TArr
+pTAbs  = pParenthesised (sepby1 i commaDelim <== string ":" <=> pKind) <*> (pTAbs +++ pTArr +++ (spaces =*> pTyp)) >>> \ ((xs, k), t) -> foldr (\ x -> TAbs x k) t xs
+pTArr  = pParenthesised ((sepby1 (string "-") commaDelim >>> length) <== string ":" <=> pTyp) <*> (pTAbs +++ pTArr +++ (spaces =*> pTyp)) >>> \ ((n, t), t') -> foldr TArr t' (replicate n t)
 pTApp  = pSTyp <*= string "[" <=> sepby1 pTyp commaDelim <== string "]" >>> uncurry (foldl TApp)
 pTTup  = string "<" ==> pTyp <*= string "," <=> sepby1 pTyp commaDelim <== string ">" >>> TTup . uncurry (:)
 
@@ -99,16 +100,17 @@ pTTup  = string "<" ==> pTyp <*= string "," <=> sepby1 pTyp commaDelim <== strin
 
 -- ===== Expression Parsing ===== --
 
-pExp        = pCase +++ pLet +++ pLetT +++ pFix +++ pAbsT +++ pAbs +++ pHexp
+pExp        = pCase +++ pLetRec +++ pLet +++ pLetT +++ pFix +++ pAbsT +++ pAbs +++ pHexp
 pHexp       = pApp +++ pSexp
-pSexp       = pTuple +++ pParenthesised pExp +++ pVar +++ pConsNoArgs +++ pConsBoth +++ pConsTOnly +++ pConsVOnly
+pSexp       = pTupleProj +++ pTuple +++ pParenthesised pExp +++ pVar +++ pConsNoArgs +++ pConsBoth +++ pConsTOnly +++ pConsVOnly
 pVar        = i >>> Var
 pCons       = c >>> (\ c -> CVal c [] [])
 pLet        = string "let" ==> i <== string ":" <=> pTyp <== string "=" <=> pExp <== string "in" <=> pExp >>> \ (((x, t), e), e') -> App (Abs x t e') e
 pLetT       = string "let" ==> i <== string ":" <=> pKind <== string "=" <=> pTyp <== string "in" <=> pExp >>> \ (((x, k), t), e) -> AppT (AbsT x k e) t
+pLetRec     = string "letrec" ==> i <== string ":" <=> pTyp <== string "=" <=> pExp <== string "in" <=> pExp >>> \ (((x, t), e), e') -> App (Abs x t e') $ Fix x t e
 pCase       = string "case" ==> pHexp <== string "of" <== string "|" <=> sepby1 (pPat <== string "-" <=> pHexp) (spaces =*> string "|" =*> spaces) >>> uncurry Case
-pAbsT       = pParenthesised (i <== string ":" <=> pKind) <*> (pAbs +++ pAbsT +++ (spaces =*> pExp)) >>> \ ((x, k), e) -> AbsT x k e
-pAbs        = pParenthesised (i <== string ":" <=> pTyp) <*> (pAbs +++ pAbsT +++ (spaces =*> pExp)) >>> \ ((x, t), e) -> Abs x t e
+pAbsT       = pParenthesised (sepby1 i commaDelim <== string ":" <=> pKind) <*> (pAbs +++ pAbsT +++ (spaces =*> pExp)) >>> \ ((xs, k), e) -> foldr (\ x -> AbsT x k) e xs
+pAbs        = pParenthesised (sepby1 i commaDelim <== string ":" <=> pTyp) <*> (pAbs +++ pAbsT +++ (spaces =*> pExp)) >>> \ ((xs, t), e) -> foldr (\ x -> Abs x t) e xs
 argGroup1   = string "[" ==> sepby1 pExp commaDelim <== string "]" >>> map Right
 argGroup2   = string "[" ==>  sepby1 pTyp commaDelim <== string "|]" >>> map Left
 argGroup3   = string "[" ==> sepby1 pTyp commaDelim <== string "|" <=> sepby1 pExp commaDelim <== string "]" >>> \ (ts, es) -> map Left ts ++ map Right es
@@ -117,6 +119,7 @@ pApp        = pSexp <*> many1 argGroup >>> \ (e, ets) -> foldl autoapp e . conca
                 where autoapp e (Left t)   = AppT e t
                       autoapp e (Right e') = App e e'
 pTuple      = string "<" ==> pExp <*= string "," <=> sepby1 pExp commaDelim <== string ">" >>> Tup . uncurry (:)
+pTupleProj  = n <*= string "#" <*> pSexp >>> uncurry Proj
 pFix        = string "fix" ==> pParenthesised (i <== string ":" <=> pTyp) <*> (pAbs +++ pAbsT +++ (spaces =*> pExp)) >>> \ ((x, t), e) -> Fix x t e
 pConsNoArgs = c <*= string "." >>> \ c -> CVal c [] []
 pConsTOnly  = c <*= string "[" <=> sepby1 pTyp commaDelim <== string "|]" >>> \ (c, ts) -> CVal c ts []

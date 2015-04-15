@@ -31,7 +31,7 @@
 
 module Eval where
 
-import Sisserou(Kind, Type, Exp, Pat, Env, TypingMonad, liftTypingMonad, Kind(Star, KArr), Type(TVar, TAbs, TArr, TCons, TApp), Exp(Var, Abs, AbsT, App, AppT, Case, CVal, Fix, Close, Tup), Pat(PVar, PVal, PTup), envEmpty, (+>), (+++), (==>), subst)
+import Sisserou(Kind, Type, Exp, Pat, Env, TypingMonad, liftTypingMonad, Kind(Star, KArr), Type(TVar, TAbs, TArr, TCons, TApp), Exp(Var, Abs, AbsT, App, AppT, Case, CVal, Fix, Close, Tup, Proj), Pat(PVar, PVal, PTup), envEmpty, (+>), (+++), (==>), subst)
 import Control.Monad(zipWithM, sequence)
 
 -- ===== Evaluator ===== --
@@ -54,6 +54,12 @@ eval g (AppT e t)              = do v <- eval g e
                                       CVal c ts []          -> return $ CVal c (ts ++ [ t ]) []
                                       _                     -> fail $ "Expected a closure in left argument of type application; received `" ++ show v ++ "`."
 eval g (Tup es)                = mapM (eval g) es >>= return . Tup
+eval g (Proj n e)              = do v <- eval g e
+                                    case v of
+                                      Tup vs -> if n <= 0 || n > length vs
+                                                   then fail $ "Cannot project from invalid index `" ++ show n ++ "` from value `" ++ show v ++ "`."
+                                                   else return $ vs !! (n - 1)
+                                      _      -> fail $ "Cannot project from non-tuple value `" ++ show v ++ "`."
 eval g (Case e [])             = do v <- eval g e
                                     fail $ "Match failure for `" ++ show v ++ "`."
 eval g (Case e ((p, e') : ls)) = do v <- eval g e
