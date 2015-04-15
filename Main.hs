@@ -118,6 +118,7 @@ processLine (NewCons c t) (d, g, s)  = do g' <- case g ==> c of
                                           return (d, g', s, i', "Value constructor `" ++ c ++ " : " ++ show t ++ "` is defined.")
 processLine (NewBind x t e) (d, g, s) = do let eTemp = Fix x t e
                                            e' <- partialEvaluateTypes d eTemp
+                                           k  <- liftTypingMonad $ d |:- t
                                            t' <- (d, g) |- e'
                                            eq <- t =~= t'
                                            i' <- getSt
