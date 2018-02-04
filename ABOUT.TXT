@@ -72,22 +72,8 @@ Here is the 'site map' of the implementation:
                     language capabilities; it was also used
                     to debug the Haskell implementation
 
-- other files:
-
-  - Makefile -- compilation script
-
-  - ABOUT.TXT -- this file
-
-  - sisserou.el -- Emacs mode for Sisserou
-
 ============================================================
 
 Running the interpreter:
 
-- install the PolyParse Haskell package (via Cabal or
-  however you like to install your Haskell packages)
-
 - run `make`
-
-- run the interpreter: `./Sisserou` (it is best run within
-  Emacs or using a utility like `rlwrap`)

@@ -1,7 +1,6 @@
 -- Sisserou -- A linguistic toy based on System F Omega   --
 --                                                        --
--- Copyright 2K14 DP Constructions                        --
---            and K.D.P.Ross <KDPRoss@gmail.com>          --
+-- Copyright 2K14--2K18 K.D.P.Ross <KDPRoss@gmail.com>    --
 --                                                        --
 -- This codebase is licensed for the following purposes   --
 -- only:                                                  --
@@ -27,13 +26,14 @@
 
 
 
-
-
 module Main where
 
 import Control.Monad(foldM)
 import Control.Exception(try, SomeException)
-import Sisserou((+>), (|-), (|:-), (=~=), (==>), envEmpty, getSt, runTypingMonad, liftTypingMonad, Input(NewType, NewCons, NewBind, EvalExp), Exp(Fix), Typing(TypeError, TypeData), Env, Type, Kind, Exp, TypingMonad, inNormalForm, Kind(Star), partialEvaluateTypes)
+import Sisserou((+>), (|-), (|:-), (=~=), (==>), envEmpty,
+       getSt, runTypingMonad, liftTypingMonad, Input(..),
+       Exp(Fix), Typing(..), Type, Kind, TypingMonad,
+       inNormalForm, Kind(Star), Env, partialEvaluateTypes)
 import Text.ParserCombinators.HuttonMeijer(papply)
 import Parser(pInput)
 import System.IO(hFlush, stdout)
@@ -92,8 +92,7 @@ main = do mapM_ putLn banner
                                                                              Nothing  -> loop d g s i
 
 banner = [ "Welcome to Sisserou",
-           "  Copyright 2K14 DP Constructions",
-           "             and K.D.P.Ross"
+           "  Copyright 2K14--2K18 K.D.P.Ross"
          ]
 
 

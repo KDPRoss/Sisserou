@@ -1,7 +1,6 @@
 -- Sisserou -- A linguistic toy based on System F Omega   --
 --                                                        --
--- Copyright 2K14 DP Constructions                        --
---            and K.D.P.Ross <KDPRoss@gmail.com>          --
+-- Copyright 2K14--2K18 K.D.P.Ross <KDPRoss@gmail.com>    --
 --                                                        --
 -- This codebase is licensed for the following purposes   --
 -- only:                                                  --
@@ -27,12 +26,13 @@
 
 
 
-
-
 module Parser where
 
+import Prelude hiding((<*>))
 import Text.ParserCombinators.HuttonMeijer
-import Sisserou(Kind, Type, Exp, Pat, Kind(Star, KArr), Type(TVar, TAbs, TArr, TCons, TApp, TTup), Exp(Var, Abs, AbsT, App, AppT, Tup, Proj, Case, CVal, Fix), Pat(PVar, PVal, PTup), envEmpty, (|-), runTypingMonad, liftTypingMonad, (+>), (|==>), (|:-), Typing(TypeData, TypeError), Input(NewBind, NewType, NewCons, EvalExp), subst)
+import Sisserou(Kind(..), Type(..), Exp(..), Pat(..),
+       envEmpty, (|-), runTypingMonad, liftTypingMonad,
+       (+>), (|==>), (|:-), Typing(..), Input(..), subst)
 
 -- ===== Nicer Parser Combinators ===== --
 

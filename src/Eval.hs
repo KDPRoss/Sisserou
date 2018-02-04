@@ -1,7 +1,6 @@
 -- Sisserou -- A linguistic toy based on System F Omega   --
 --                                                        --
--- Copyright 2K14 DP Constructions                        --
---            and K.D.P.Ross <KDPRoss@gmail.com>          --
+-- Copyright 2K14--2K18 K.D.P.Ross <KDPRoss@gmail.com>    --
 --                                                        --
 -- This codebase is licensed for the following purposes   --
 -- only:                                                  --
@@ -27,11 +26,11 @@
 
 
 
-
-
 module Eval where
 
-import Sisserou(Kind, Type, Exp, Pat, Env, TypingMonad, liftTypingMonad, Kind(Star, KArr), Type(TVar, TAbs, TArr, TCons, TApp), Exp(Var, Abs, AbsT, App, AppT, Case, CVal, Fix, Close, Tup, Proj), Pat(PVar, PVal, PTup), envEmpty, (+>), (+++), (==>), subst)
+import Sisserou(Kind(..), Type(..), Exp(..), Pat(..), Env,
+       TypingMonad, liftTypingMonad, envEmpty, (+>), (+++),
+       (==>), subst)
 import Control.Monad(zipWithM, sequence)
 
 -- ===== Evaluator ===== --

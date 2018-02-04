@@ -1,7 +1,6 @@
 -- Sisserou -- A linguistic toy based on System F Omega   --
 --                                                        --
--- Copyright 2K14 DP Constructions                        --
---            and K.D.P.Ross <KDPRoss@gmail.com>          --
+-- Copyright 2K14--2K18 K.D.P.Ross <KDPRoss@gmail.com>    --
 --                                                        --
 -- This codebase is licensed for the following purposes   --
 -- only:                                                  --
@@ -27,19 +26,18 @@
 
 
 
-
-
 module Sisserou where
 
 import Data.List(intercalate, intersect, intersperse, nub)
-import Control.Monad(foldM, zipWithM)
+import Control.Monad(foldM, zipWithM, ap)
 import Control.Arrow(second)
+import Control.Applicative
 
 -- ===== Expression / Type Representation ===== --
 
 data Kind = Star
           | KArr Kind Kind
-  deriving Eq
+              deriving Eq
 data Type = TVar String
           | TAbs String Kind Type
           | TArr Type Type
@@ -63,7 +61,7 @@ data Pat  = PVar String Type
 
 data Typing a = TypeError [ String ]
               | TypeData a
-  deriving Show
+                  deriving Show
 
 data Input = NewType String Kind
            | NewCons String Type
@@ -97,6 +95,13 @@ type St = Integer
 
 newtype TypingMonad a = TypingMonad (St -> Typing (St, a))
 
+instance Applicative TypingMonad where
+  (<*>) = ap
+  pure  = return
+
+instance Functor TypingMonad where
+  fmap f x = x >>= return . f
+
 instance Monad TypingMonad where
   return x = TypingMonad $ \ st -> TypeData (st, x)
 
@@ -123,6 +128,12 @@ runTypingMonad :: TypingMonad a -> St -> Typing a
 runTypingMonad (TypingMonad f) st = case f st of
                                       TypeData (_, x) -> TypeData x
                                       TypeError ss    -> TypeError ss
+instance Applicative Typing where
+  (<*>) = ap
+  pure  = return
+
+instance Functor Typing where
+  fmap f x = x >>= return . f
 
 instance Monad Typing where
   return = TypeData
