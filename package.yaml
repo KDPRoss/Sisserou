@@ -6,8 +6,6 @@ author:              "K.D.P.Ross"
 maintainer:          "kdpross@gmail.com"
 copyright:           "2K18 K.D.P.Ross"
 
-extra-source-files:
-
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
 # category:            Web
