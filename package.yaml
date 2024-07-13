@@ -4,7 +4,7 @@ github:              "kdpross/sisserou"
 license:             BSD3
 author:              "K.D.P.Ross"
 maintainer:          "kdpross@gmail.com"
-copyright:           "2K18 K.D.P.Ross"
+copyright:           "2014-2024 K.D.P.Ross"
 
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
@@ -32,4 +32,3 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - sisserou
-

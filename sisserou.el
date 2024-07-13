@@ -1,7 +1,6 @@
 ;; Sisserou -- A linguistic toy based on System F Omega   ;;
 ;;                                                        ;;
-;; Copyright 2K14 DP Constructions                        ;;
-;;            and K.D.P.Ross <KDPRoss@gmail.com>          ;;
+;; Copyright 2014--2024 K.D.P.Ross <KDPRoss@gmail.com>    ;;
 ;;                                                        ;;
 ;; This codebase is licensed for the following purposes   ;;
 ;; only:                                                  ;;

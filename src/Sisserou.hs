@@ -1,6 +1,6 @@
 -- Sisserou -- A linguistic toy based on System F Omega   --
 --                                                        --
--- Copyright 2K14--2K18 K.D.P.Ross <KDPRoss@gmail.com>    --
+-- Copyright 2014--2024 K.D.P.Ross <KDPRoss@gmail.com>    --
 --                                                        --
 -- This codebase is licensed for the following purposes   --
 -- only:                                                  --
@@ -479,7 +479,7 @@ instance Show Exp where
   show (AppT e t)                = showS e ++ "[ " ++ show t ++ " |]"
   show (Tup es)                  = "< " ++ showCommas es ++ " >"
   show (Proj n e)                = show n ++ "#" ++ showS e
-  show (Case e ls)               = "case " ++ showS e ++ " of " ++ (intercalate " | " . map (\ (p, e) -> show p ++ " -> " ++ showS e) $ ls)
+  show (Case e ls)               = "case " ++ showS e ++ " of " ++ (intercalate " | " . map (\ (p, e) -> show p ++ " - " ++ showS e) $ ls)
   show (CVal c [] [])            = c ++ "."
   show (CVal c ts [])            = c ++ "[ " ++ showCommas ts ++ " |]"
   show (CVal c [] es)            = c ++ "[ " ++ showCommas es ++ " ]"
