@@ -1,0 +1,8 @@
+*~
+.stack-work/
+/*.hs
+/*.sro
+book
+pool
+sisserou.cabal
+stack.yaml.lock

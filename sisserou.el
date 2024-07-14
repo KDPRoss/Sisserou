@@ -82,7 +82,7 @@
    '("^[ ]*--.*$" . 'sisserou-font-lock-comment-face)
    '("[[][[][^]]*[]][]]\\|\\<[A-Z][A-Za-z0-9']*\\>" . 'sisserou-font-lock-variable-name-face)
    '("[[][[][^]]*[]][]]\\|\\<[A-Z][A-Za-z0-9']*[.]" . 'sisserou-font-lock-sisserou-face)
-   '("\\(\\<new[ ]+\\(cons\\|type\\)\\>\\)\\|[*]" . 'sisserou-punctuation-face)
+   '("#load\\|\\(\\<new[ ]+\\(cons\\|type\\)\\>\\)\\|[*]" . 'sisserou-punctuation-face)
    '("\\(: \\|-\\|[<] \\| [>]\\|[0-9]+#\\)" . 'sisserou-font-lock-sisserou-face)
    '("\\<\\(in\\|let\\|letrec\\|fix\\|case\\|of\\)\\>\\|=\\|,\\|[[] \\| []]\\| |[]]\\|| " . 'sisserou-font-lock-keyword-face)
    '("[[][[][^]]*[]][]]\\|\\<[a-z][A-Za-z0-9']*\\>" . 'sisserou-diacritics-face)

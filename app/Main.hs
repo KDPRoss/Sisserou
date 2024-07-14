@@ -60,40 +60,56 @@ main = do mapM_ putLn banner
                                                                      "reset / :r             - reset the interpreter state"
                                                                    ]
                                                        loop d g s i
-                                 let loadAction f =  let foldableProcessLine (d, g, s, i) inp = case runTypingMonad (processLine inp (d, g, s)) i of
-                                                                                                  TypeData (d', g', s', i', msg) -> do putLn msg
-                                                                                                                                       return (d', g', s', i')
-                                                                                                  TypeError ss                   -> do mapM_ putLn ss
-                                                                                                                                       return (d, g, s, i)
-                                                     in
-                                                     do ssMaybe <- readLinesAutoextension f
-                                                        case ssMaybe of
-                                                          Nothing -> putLn $ "Unable to read file `" ++ f ++ "`."
-                                                          Just ss -> do inps             <- mapM parseString . stripComments $ ss
-                                                                        (d', g', s', i') <- foldM foldableProcessLine (d, g, s, i) $ successes inps
-                                                                        loop d' g' s' i'
-                                 case text of
-                                   "quit"  -> quitAction
-                                   ":q"    -> quitAction
-                                   "reset" -> resetAction
-                                   ":r"    -> resetAction
-                                   "help"  -> helpAction
-                                   "?"     -> helpAction
-                                   ":h"    -> helpAction
-                                   _       | "load " == take 5 text -> loadAction . drop 5 $ text
-                                   _       | ":l " == take 3 text   -> loadAction . drop 3 $ text
-                                   _                                ->  do m <- parseString text
-                                                                           case m of
-                                                                             Just inp -> case runTypingMonad (processLine inp (d, g, s)) i of
-                                                                                           TypeData (d, g, s, i, msg) -> do putLn msg
-                                                                                                                            loop d g s i
-                                                                                           TypeError ss               -> do mapM_ putLn ss
-                                                                                                                            loop d g s i
-                                                                             Nothing  -> loop d g s i
+                                 let loadAction f = let foldableProcessLine (d, g, s, i) inp = case runTypingMonad (processLine inp (d, g, s)) i of
+                                                                                                 TypeData (d', g', s', i', msg) -> do putLn msg
+                                                                                                                                      return (d', g', s', i')
+                                                                                                 TypeError ss                   -> do mapM_ putLn ss
+                                                                                                                                      return (d, g, s, i)
+                                                    in
+                                                    do ssMaybe <- handleNestedLoad ("#load " ++ f)
+                                                       case ssMaybe of
+                                                         Nothing -> do _ <- putLn $ "Unable to read file `" ++ f ++ "`."
+                                                                       loop d g s i
+                                                         Just ss -> do inps             <- mapM parseString . stripComments $ ss
+                                                                       (d', g', s', i') <- foldM foldableProcessLine (d, g, s, i) $ successes inps
+                                                                       loop d' g' s' i'
+                                 case words text of
+                                   [ "quit" ]    -> quitAction
+                                   [ ":q" ]      -> quitAction
+                                   [ "reset" ]   -> resetAction
+                                   [ ":r" ]      -> resetAction
+                                   [ "help" ]    -> helpAction
+                                   [ "?" ]       -> helpAction
+                                   [ ":h" ]      -> helpAction
+                                   [ "load", f ] -> loadAction f
+                                   [ ":l", f ]   -> loadAction f
+                                   _             ->  do m <- parseString text
+                                                        case m of
+                                                          Just inp -> case runTypingMonad (processLine inp (d, g, s)) i of
+                                                                        TypeData (d, g, s, i, msg) -> do putLn msg
+                                                                                                         loop d g s i
+                                                                        TypeError ss               -> do mapM_ putLn ss
+                                                                                                         loop d g s i
+                                                          Nothing  -> loop d g s i
 
 banner = [ "Welcome to Sisserou",
-           "  Copyright 2K14--2K18 K.D.P.Ross"
+           "Copyright 2014--2024 K.D.P.Ross"
          ]
+
+
+
+-- ===== Handle Potentially-Nested File Loads ===== --
+
+handleNestedLoad :: String -> IO (Maybe [ String ])
+handleNestedLoad s = case words s of
+                       [ "#load", f ] -> do ssMaybe <- readLinesAutoextension f
+                                            case ssMaybe of
+                                              Just ss -> do sss <- mapM handleNestedLoad . stripComments $ ss
+                                                            if length (successes sss) == length sss
+                                                               then return . Just . concat . successes $ sss
+                                                               else return Nothing
+                                              Nothing -> return Nothing
+                       _              -> return . Just $ [ s ]
 
 
 
